@@ -6,7 +6,13 @@ import { NEU } from '../../utils/shadows';
 import { useProjectCardLayout } from './useProjectCardLayout';
 import type { ProjectFolderMove, ProjectGridCardModel } from './useProjectCardLayout';
 import type { ProjectBoardFacts } from '../../hooks/useProjectsBoard';
-import { PROJECT_CARD_ROW_PX } from './projectCardLayout';
+import {
+  MOBILE_COLUMN_COUNT,
+  PROJECT_CARD_ROW_PX,
+  estimateMobileCardHeight,
+  layoutMasonryColumns,
+  mobileExcerptCharsPerLine,
+} from './projectCardLayout';
 
 /** Room kept under the lowest card so a card can always be dragged further down. */
 const BOARD_TRAILING_SPACE_PX = PROJECT_CARD_ROW_PX;
@@ -92,10 +98,7 @@ export function ProjectGrid({
   const isSidebar = variant === 'desktop-sidebar';
 
   return (
-    <div
-      {...grid.containerProps}
-      className={`flex-1 min-h-0 overflow-y-auto ${isSidebar ? 'p-2' : 'p-3 md:p-4'}`}
-    >
+    <div className={`flex-1 min-h-0 overflow-y-auto ${isSidebar ? 'p-2' : 'p-3 md:p-4'}`}>
       {isDesktop && (
         <div className={`mb-3 flex items-center ${isSidebar ? 'justify-end' : 'justify-between'} gap-2`}>
           {!isSidebar && (
@@ -134,6 +137,7 @@ export function ProjectGrid({
         </div>
       )}
 
+      <div {...grid.containerProps}>
       {grid.cards.length === 0 ? (
         <div className={isDesktop ? 'max-w-xs' : 'grid grid-cols-2 gap-3'}>
           <AddProjectTile
@@ -227,24 +231,28 @@ export function ProjectGrid({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                {section.cards.map((card) => (
-                  <ProjectCardTile
-                    key={card.project.id}
-                    card={card}
-                    desktop={false}
-                    editable={false}
-                    fontPx={fontPx}
-                    facts={facts[card.project.id]}
-                    isActive={card.project.id === activeProjectId}
-                    onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
-                    onLongPressStart={() => {
-                      longPressTimerRef.current = setTimeout(() => {
-                        actions.requestDeleteProject(card.project.id);
-                      }, 600);
-                    }}
-                    onLongPressEnd={clearLongPress}
-                  />
+              <div className="flex items-start gap-3">
+                {masonryColumns(section.cards, facts, grid.boardWidth).map((column, index) => (
+                  <div key={index} className="flex min-w-0 flex-1 flex-col gap-3">
+                    {column.map(({ card }) => (
+                      <ProjectCardTile
+                        key={card.project.id}
+                        card={card}
+                        desktop={false}
+                        editable={false}
+                        fontPx={fontPx}
+                        facts={facts[card.project.id]}
+                        isActive={card.project.id === activeProjectId}
+                        onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
+                        onLongPressStart={() => {
+                          longPressTimerRef.current = setTimeout(() => {
+                            actions.requestDeleteProject(card.project.id);
+                          }, 600);
+                        }}
+                        onLongPressEnd={clearLongPress}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             </section>
@@ -259,8 +267,31 @@ export function ProjectGrid({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
+}
+
+/**
+ * Narrow-board layout for one folder's cards.
+ *
+ * Reading order comes from where the cards sit on the wide board, so an arrangement made on
+ * the computer still shapes what the phone shows first. Only the ordering carries over —
+ * positions and sizes are device-local and are deliberately not applied here.
+ */
+function masonryColumns(
+  cards: ProjectGridCardModel[],
+  facts: Record<string, ProjectBoardFacts>,
+  boardWidth: number,
+) {
+  const charsPerLine = mobileExcerptCharsPerLine((boardWidth || 360) / MOBILE_COLUMN_COUNT);
+  const ordered = [...cards]
+    .sort((a, b) => (a.frame.y - b.frame.y) || (a.frame.x - b.frame.x))
+    .map((card) => ({
+      card,
+      height: estimateMobileCardHeight(facts[card.project.id]?.excerpt ?? '', charsPerLine),
+    }));
+  return layoutMasonryColumns(ordered, MOBILE_COLUMN_COUNT);
 }
 
 function ProjectCardTile({

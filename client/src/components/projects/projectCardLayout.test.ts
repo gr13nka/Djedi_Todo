@@ -13,7 +13,11 @@ import {
   legacyGridColumnCount,
   normalizeProjectGridLayout,
   projectCardFrameFromGridCell,
+  MOBILE_COLUMN_COUNT,
   ZONE_LABEL_PX,
+  estimateMobileCardHeight,
+  layoutMasonryColumns,
+  mobileExcerptCharsPerLine,
   folderZoneAtPoint,
   frameContainsPoint,
   placeCardInZone,
@@ -250,6 +254,43 @@ describe('project card layout', () => {
     expect(next.folders[folder.id]).toBeDefined();
     const card = next.cards.filed;
     expect(folderZoneAtPoint(next.folders, card.x, card.y)).toBe(folder.id);
+  });
+
+  it('sends each card to the column that is currently shortest', () => {
+    const columns = layoutMasonryColumns(
+      [{ id: 'a', height: 200 }, { id: 'b', height: 40 }, { id: 'c', height: 40 }, { id: 'd', height: 40 }],
+      MOBILE_COLUMN_COUNT,
+    );
+
+    // 'a' is tall, so the right column takes the next three rather than squaring off.
+    expect(columns[0].map((item) => item.id)).toEqual(['a']);
+    expect(columns[1].map((item) => item.id)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('puts the first two cards side by side when nothing is taller yet', () => {
+    const columns = layoutMasonryColumns(
+      [{ id: 'a', height: 100 }, { id: 'b', height: 100 }, { id: 'c', height: 100 }],
+      MOBILE_COLUMN_COUNT,
+    );
+
+    expect(columns[0].map((item) => item.id)).toEqual(['a', 'c']);
+    expect(columns[1].map((item) => item.id)).toEqual(['b']);
+  });
+
+  it('grows a card with its note but stops before it owns the screen', () => {
+    const perLine = mobileExcerptCharsPerLine(180);
+    const empty = estimateMobileCardHeight('', perLine);
+    const short = estimateMobileCardHeight('x'.repeat(perLine * 2), perLine);
+    const huge = estimateMobileCardHeight('x'.repeat(perLine * 500), perLine);
+
+    expect(short).toBeGreaterThan(empty);
+    expect(huge).toBeGreaterThan(short);
+    expect(huge).toBeLessThan(empty + 9 * 16);
+  });
+
+  it('never divides by a zero-width column', () => {
+    expect(mobileExcerptCharsPerLine(0)).toBeGreaterThan(0);
+    expect(layoutMasonryColumns([{ height: 10 }], 0)).toHaveLength(1);
   });
 
   it('never moves a placed card to agree with its folder — that is the hook\'s call', () => {

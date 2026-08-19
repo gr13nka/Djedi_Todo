@@ -496,6 +496,7 @@ export function useProjectCardLayout({
 
   return {
     containerProps: { ref: containerRef },
+    boardWidth,
     cards,
     zones,
     boardHeight,

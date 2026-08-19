@@ -389,3 +389,56 @@ export function applyFramesToLayout(
     folders: { ...layout.folders, ...patch.folders },
   };
 }
+
+/** The narrow board is two columns, always — it is a reading layout, not an editable one. */
+export const MOBILE_COLUMN_COUNT = 2;
+
+const MOBILE_CARD_HEADER_PX = 40;
+const MOBILE_CARD_LINE_PX = 16;
+/** Past this the card stops growing; one long note must not own the whole screen. */
+const MOBILE_CARD_MAX_LINES = 8;
+/** Rough advance of one character at the excerpt's size, for turning length into lines. */
+const MOBILE_CARD_CHAR_PX = 7;
+
+export function mobileExcerptCharsPerLine(columnWidth: number): number {
+  return Math.max(8, Math.round(columnWidth / MOBILE_CARD_CHAR_PX));
+}
+
+/**
+ * Roughly how tall a card will be once its excerpt wraps. Only ever compared against other
+ * cards to decide which column is shorter, so being approximate costs nothing.
+ */
+export function estimateMobileCardHeight(excerpt: string, charsPerLine: number): number {
+  const lines = excerpt ? Math.ceil(excerpt.length / Math.max(1, charsPerLine)) : 0;
+  return MOBILE_CARD_HEADER_PX + Math.min(lines, MOBILE_CARD_MAX_LINES) * MOBILE_CARD_LINE_PX;
+}
+
+export interface MasonryItem {
+  /** Estimated height; used only to decide which column is currently shorter. */
+  height: number;
+}
+
+/**
+ * Greedy masonry: each card goes into whichever column is shortest so far, in the order
+ * given. Columns fill independently, so a card's height is free to follow its note instead of
+ * being squared off against its neighbour.
+ *
+ * Ties go to the leftmost column, which is what puts the first two cards side by side rather
+ * than stacking them.
+ */
+export function layoutMasonryColumns<T extends MasonryItem>(items: T[], columns: number): T[][] {
+  const count = Math.max(1, columns);
+  const buckets: T[][] = Array.from({ length: count }, () => []);
+  const heights = new Array<number>(count).fill(0);
+
+  for (const item of items) {
+    let shortest = 0;
+    for (let index = 1; index < count; index++) {
+      if (heights[index] < heights[shortest]) shortest = index;
+    }
+    buckets[shortest].push(item);
+    heights[shortest] += item.height;
+  }
+
+  return buckets;
+}
