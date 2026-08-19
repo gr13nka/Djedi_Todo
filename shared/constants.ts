@@ -99,6 +99,9 @@ export const DEFAULT_DEVICE_SETTINGS = {
     folders: {},
   },
   boardIdleDaysVisible: false,
+  projectSidebarWidth: 220,
+  projectTaskPaneWidth: 288,
+  projectTaskPaneHeight: 240,
   taskSelectionDesktopSwipeEnabled: false,
 } satisfies PersistedDeviceSettings;
 

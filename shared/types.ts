@@ -115,6 +115,10 @@ export interface DeviceSettings {
   bottomNavPages: string[][];
   projectGridLayout: ProjectGridLayout;
   boardIdleDaysVisible: boolean;
+  /** Pane sizes on /projects, in pixels. Device-local, like the board layout they sit beside. */
+  projectSidebarWidth: number;
+  projectTaskPaneWidth: number;
+  projectTaskPaneHeight: number;
   taskSelectionDesktopSwipeEnabled: boolean;
 }
 

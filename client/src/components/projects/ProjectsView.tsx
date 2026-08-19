@@ -81,18 +81,24 @@ export function ProjectsView() {
   // Nothing is auto-opened: with no tab active the board is what /projects shows, and
   // opening a project on arrival would skip straight past it.
 
-  // Resizable sidebar width
-  const [sidebarWidth, setSidebarWidth] = useState(220);
+  // Pane sizes live in device settings, next to the board layout. Local state carries the
+  // in-flight drag so a resize does not write to Dexie once per pointer move; the settled
+  // size is committed when the handle is released, the same bargain the board strikes.
+  const storedSidebarWidth = useSettingsStore((s) => s.projectSidebarWidth);
+  const storedTaskPaneWidth = useSettingsStore((s) => s.projectTaskPaneWidth);
+  const storedTaskPaneHeight = useSettingsStore((s) => s.projectTaskPaneHeight);
+  const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth);
+  const [taskPanelWidth, setTaskPanelWidth] = useState(storedTaskPaneWidth);
+  const [taskPanelHeight, setTaskPanelHeight] = useState(storedTaskPaneHeight);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const taskDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const taskHeightDragRef = useRef<{ startY: number; startHeight: number; maxHeight: number } | null>(null);
   const effectiveSidebarWidth = Math.min(MAX_TREE_SIDEBAR, Math.max(MIN_TREE_SIDEBAR, sidebarWidth));
 
-  // Resizable task panel width (vertical split)
-  const [taskPanelWidth, setTaskPanelWidth] = useState(288);
-  const taskDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-  // Resizable task panel height (horizontal split)
-  const [taskPanelHeight, setTaskPanelHeight] = useState(240);
-  const taskHeightDragRef = useRef<{ startY: number; startHeight: number; maxHeight: number } | null>(null);
+  // Settings arrive after the first render, and can change under a vault switch.
+  useEffect(() => { setSidebarWidth(storedSidebarWidth); }, [storedSidebarWidth]);
+  useEffect(() => { setTaskPanelWidth(storedTaskPaneWidth); }, [storedTaskPaneWidth]);
+  useEffect(() => { setTaskPanelHeight(storedTaskPaneHeight); }, [storedTaskPaneHeight]);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const cutDescriptionRef = useRef<((start: number, end: number) => void) | null>(null);
@@ -141,7 +147,8 @@ export function ProjectsView() {
     sidebarDragRef.current = null;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-  }, []);
+    void updateSettings({ projectSidebarWidth: effectiveSidebarWidth });
+  }, [updateSettings, effectiveSidebarWidth]);
 
   const handleTaskPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -164,7 +171,8 @@ export function ProjectsView() {
     taskDragRef.current = null;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-  }, []);
+    void updateSettings({ projectTaskPaneWidth: taskPanelWidth });
+  }, [updateSettings, taskPanelWidth]);
 
   // Initialize mobile sheet height on first render / resize
   useEffect(() => {
@@ -322,7 +330,8 @@ export function ProjectsView() {
     taskHeightDragRef.current = null;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-  }, []);
+    void updateSettings({ projectTaskPaneHeight: taskPanelHeight });
+  }, [updateSettings, taskPanelHeight]);
 
   return (
     <div
