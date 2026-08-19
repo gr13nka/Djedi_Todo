@@ -13,14 +13,21 @@ import {
   legacyGridColumnCount,
   normalizeProjectGridLayout,
   projectCardFrameFromGridCell,
+  ZONE_LABEL_PX,
+  folderZoneAtPoint,
+  frameContainsPoint,
+  placeCardInZone,
   reconcileProjectGridLayout,
   sanitizeProjectCardFrame,
-  topStackingOrder,
+  topCardStackingOrder,
+  topZoneStackingOrder,
 } from './projectCardLayout';
 
 const ROW_STEP = PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
 /** A board this wide read v1 cells as three columns, which several cases below rely on. */
 const BOARD = 960;
+
+const emptyLayout = (): ProjectGridLayout => ({ version: 2, cards: {}, folders: {} });
 
 const makeProject = (id: string, sortOrder: number, folderId: string | null = null): Project => ({
   id,
@@ -195,10 +202,68 @@ describe('project card layout', () => {
       { x: 0.5, y: 40, w: 0.2, h: 80, z: 0 },
     ])).toBe(120);
 
-    expect(topStackingOrder({
+    const layout: ProjectGridLayout = {
       version: 2,
       cards: { a: { x: 0, y: 0, w: 0.2, h: 80, z: 2 } },
       folders: { f: { x: 0, y: 0, w: 0.5, h: 200, z: 7 } },
-    })).toBe(8);
+    };
+    // Cards and zones stack on separate layers, so a recently dragged zone cannot cover cards.
+    expect(topCardStackingOrder(layout)).toBe(3);
+    expect(topZoneStackingOrder(layout)).toBe(8);
+  });
+
+  it('decides folder membership by the top-left corner alone', () => {
+    const zone = { x: 0.1, y: 100, w: 0.4, h: 200, z: 0 };
+
+    expect(frameContainsPoint(zone, 0.1, 100)).toBe(true);
+    expect(frameContainsPoint(zone, 0.5, 300)).toBe(false);
+    // A card whose corner is outside is out, however much of its body overlaps.
+    expect(folderZoneAtPoint({ f: zone }, 0.09, 150)).toBeNull();
+    expect(folderZoneAtPoint({ f: zone }, 0.2, 150)).toBe('f');
+  });
+
+  it('gives the topmost zone the card when zones overlap', () => {
+    const zones = {
+      under: { x: 0, y: 0, w: 0.6, h: 300, z: 1 },
+      over: { x: 0.1, y: 50, w: 0.4, h: 200, z: 4 },
+    };
+
+    expect(folderZoneAtPoint(zones, 0.2, 100)).toBe('over');
+    expect(folderZoneAtPoint(zones, 0.05, 100)).toBe('under');
+  });
+
+  it('places a card inside the zone it is filed under, below the label', () => {
+    const zone = { x: 0.1, y: 100, w: 0.5, h: 400, z: 0 };
+    const placed = placeCardInZone(zone, 0, BOARD);
+
+    expect(placed.x).toBeGreaterThan(zone.x);
+    expect(placed.y).toBe(zone.y + ZONE_LABEL_PX);
+    expect(folderZoneAtPoint({ f: zone }, placed.x, placed.y)).toBe('f');
+  });
+
+  it('gives every folder a zone and puts a new filed card inside its own', () => {
+    const folder = makeFolder('folder-a', 0);
+    const projects = [makeProject('filed', 0, folder.id)];
+
+    const next = reconcileProjectGridLayout(projects, [folder], emptyLayout(), BOARD);
+
+    expect(next.folders[folder.id]).toBeDefined();
+    const card = next.cards.filed;
+    expect(folderZoneAtPoint(next.folders, card.x, card.y)).toBe(folder.id);
+  });
+
+  it('never moves a placed card to agree with its folder — that is the hook\'s call', () => {
+    const folder = makeFolder('folder-a', 0);
+    const outside = { x: 0.75, y: 900, w: 0.2, h: 100, z: 1 };
+    const projects = [makeProject('filed', 0, folder.id)];
+    const layout: ProjectGridLayout = {
+      version: 2,
+      cards: { filed: outside },
+      folders: { [folder.id]: { x: 0, y: 0, w: 0.5, h: 300, z: 0 } },
+    };
+
+    const next = reconcileProjectGridLayout(projects, [folder], layout, BOARD);
+
+    expect(next.cards.filed).toEqual(outside);
   });
 });

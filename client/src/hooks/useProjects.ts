@@ -26,6 +26,18 @@ export function useProjects() {
 
   const moveProject = (id: string, folderId: string | null) => update(id, { folderId });
 
+  // One drop on the board can refile several projects at once — a resized folder zone pushes
+  // some cards out while pulling others in. One transaction, so the board is never read
+  // half-refiled.
+  const moveProjects = async (moves: Array<{ id: string; folderId: string | null }>) => {
+    if (!moves.length) return;
+    await db.transaction('rw', db.projects, async () => {
+      for (const move of moves) {
+        await update(move.id, { folderId: move.folderId });
+      }
+    });
+  };
+
   const updateProject = (
     id: string,
     patch: Partial<Pick<Project, 'name' | 'description' | 'color' | 'icon' | 'isArchived' | 'folderId' | 'linkedActivityId'>>,
@@ -57,6 +69,7 @@ export function useProjects() {
     updateProject,
     deleteProject,
     moveProject,
+    moveProjects,
     reorderProjects,
   };
 }

@@ -4,6 +4,7 @@ import type { Project, ProjectFolder, ProjectGridLayout } from '@shared/types';
 import { useTranslation } from '../../i18n/useTranslation';
 import { NEU } from '../../utils/shadows';
 import { useProjectCardLayout } from './useProjectCardLayout';
+import type { ProjectFolderMove, ProjectGridCardModel } from './useProjectCardLayout';
 import { PROJECT_CARD_ROW_PX } from './projectCardLayout';
 
 /** Room kept under the lowest card so a card can always be dragged further down. */
@@ -14,6 +15,8 @@ interface ProjectGridActions {
   requestAddProject: (folderId: string | null) => void;
   requestAddFolder: () => void;
   requestDeleteProject: (projectId: string) => void;
+  /** Cards dropped inside a zone (or clear of every zone) are filed accordingly. */
+  moveProjectsToFolders: (moves: ProjectFolderMove[]) => void | Promise<void>;
 }
 
 interface ProjectGridProps {
@@ -74,6 +77,7 @@ export function ProjectGrid({
     viewport,
     editable: editable && isDesktop,
     onActivate: actions.openProject,
+    onFolderChange: actions.moveProjectsToFolders,
   });
 
   const clearLongPress = () => {
@@ -129,13 +133,83 @@ export function ProjectGrid({
         </div>
       )}
 
-      {grid.sections.length === 0 ? (
+      {grid.cards.length === 0 ? (
         <div className={isDesktop ? 'max-w-xs' : 'grid grid-cols-2 gap-3'}>
           <AddProjectTile
             desktop={isDesktop}
             onClick={() => actions.requestAddProject(null)}
             label={t('projects.newTitle')}
           />
+        </div>
+      ) : isDesktop ? (
+        <div className="flex flex-col gap-4">
+          {/* One canvas: zones are rectangles behind the cards, in the same coordinate space. */}
+          <div
+            data-project-board
+            className="relative min-w-0"
+            style={{ height: grid.boardHeight + BOARD_TRAILING_SPACE_PX }}
+          >
+            {grid.zones.map((zone) => (
+              <div
+                key={zone.folder.id}
+                {...zone.rootProps}
+                style={{
+                  ...zone.style,
+                  borderColor: `${zone.folder.color}66`,
+                  backgroundColor: `${zone.folder.color}0F`,
+                }}
+                className={`group/zone rounded-2xl border-2 border-dashed ${
+                  editable ? 'cursor-grab touch-none active:cursor-grabbing' : ''
+                } ${zone.isDragging || zone.isResizing ? 'opacity-90' : ''}`}
+              >
+                <div
+                  className="flex items-center gap-2 px-3"
+                  style={{ height: grid.zoneLabelHeight }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: zone.folder.color }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-text-muted/70 truncate">
+                    {zone.folder.name}
+                  </span>
+                </div>
+
+                {editable && (
+                  <button
+                    {...zone.resizeHandleProps}
+                    data-project-card-action
+                    className="absolute bottom-1.5 right-1.5 h-5 w-5 rounded-md text-text-muted/70 transition-opacity hover:text-text-secondary can-hover:opacity-0 can-hover:group-hover/zone:opacity-100 focus-visible:opacity-100 cursor-nwse-resize"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <path d="M4 10h6V4" />
+                      <path d="M7 10h3V7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {grid.cards.map((card) => (
+              <ProjectCardTile
+                key={card.project.id}
+                card={card}
+                desktop
+                editable={editable}
+                fontPx={fontPx}
+                openCount={taskCounts[card.project.id] ?? 0}
+                isActive={card.project.id === activeProjectId}
+                onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
+                onLongPressStart={undefined}
+                onLongPressEnd={clearLongPress}
+              />
+            ))}
+          </div>
+
+          <div className="max-w-xs">
+            <AddProjectTile
+              desktop
+              onClick={() => actions.requestAddProject(null)}
+              label={t('projects.newTitle')}
+            />
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -152,82 +226,32 @@ export function ProjectGrid({
                 </div>
               )}
 
-              <div
-                data-project-grid-section
-                className={isDesktop ? 'relative min-w-0' : 'grid grid-cols-2 gap-3'}
-                style={isDesktop ? { height: section.height + BOARD_TRAILING_SPACE_PX } : undefined}
-              >
-                {section.cards.map((card) => {
-                  const openCount = taskCounts[card.project.id] ?? 0;
-                  const { style, ...rootProps } = card.rootProps;
-                  const isActive = card.project.id === activeProjectId;
-                  return (
-                    <motion.article
-                      key={card.project.id}
-                      {...rootProps}
-                      whileTap={isDesktop ? undefined : { scale: 0.96 }}
-                      onContextMenu={(event) => {
-                        event.preventDefault();
+              <div className="grid grid-cols-2 gap-3">
+                {section.cards.map((card) => (
+                  <ProjectCardTile
+                    key={card.project.id}
+                    card={card}
+                    desktop={false}
+                    editable={false}
+                    fontPx={fontPx}
+                    openCount={taskCounts[card.project.id] ?? 0}
+                    isActive={card.project.id === activeProjectId}
+                    onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
+                    onLongPressStart={() => {
+                      longPressTimerRef.current = setTimeout(() => {
                         actions.requestDeleteProject(card.project.id);
-                      }}
-                      onTouchStart={() => {
-                        if (isDesktop) return;
-                        longPressTimerRef.current = setTimeout(() => {
-                          actions.requestDeleteProject(card.project.id);
-                        }, 600);
-                      }}
-                      onTouchEnd={clearLongPress}
-                      onTouchMove={clearLongPress}
-                      className={`group relative flex flex-col items-start gap-1.5 overflow-hidden rounded-2xl p-3 text-left outline-none transition-[box-shadow,opacity,transform,background-color] focus-visible:ring-2 focus-visible:ring-accent ${
-                        isActive ? 'bg-bg-elevated text-text-primary' : 'bg-bg-card'
-                      } ${
-                        isDesktop && editable ? 'cursor-grab touch-none active:cursor-grabbing' : ''
-                      } ${card.isDragging || card.isResizing ? 'opacity-80' : ''}`}
-                      style={{
-                        ...style,
-                        boxShadow: card.isDragging || card.isResizing
-                          ? NEU.modal
-                          : (isActive ? NEU.pressedSm : NEU.raised),
-                      }}
-                    >
-                      <div className="flex items-center gap-2 w-full min-w-0">
-                        {card.project.icon ? (
-                          <span className="text-lg leading-none shrink-0">{card.project.icon}</span>
-                        ) : (
-                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: card.project.color }} />
-                        )}
-                        <span className="font-medium text-text-primary truncate" style={{ fontSize: `${fontPx}px` }}>
-                          {card.project.name}
-                        </span>
-                      </div>
-                      {openCount > 0 && (
-                        <span className="text-[11px] text-text-muted tabular-nums">
-                          {openCount}
-                        </span>
-                      )}
-
-                      {isDesktop && editable && (
-                        <button
-                          {...card.resizeHandleProps}
-                          data-project-card-action
-                          className="absolute bottom-1.5 right-1.5 h-5 w-5 rounded-md text-text-muted/70 transition-opacity hover:text-text-secondary can-hover:opacity-0 can-hover:group-hover:opacity-100 focus-visible:opacity-100 cursor-nwse-resize"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                            <path d="M4 10h6V4" />
-                            <path d="M7 10h3V7" />
-                          </svg>
-                        </button>
-                      )}
-                    </motion.article>
-                  );
-                })}
+                      }, 600);
+                    }}
+                    onLongPressEnd={clearLongPress}
+                  />
+                ))}
               </div>
             </section>
           ))}
 
-          <div className={isDesktop ? 'max-w-xs' : 'grid grid-cols-2 gap-3'}>
+          <div className="grid grid-cols-2 gap-3">
             <AddProjectTile
-              desktop={isDesktop}
+              desktop={false}
               onClick={() => actions.requestAddProject(null)}
               label={t('projects.newTitle')}
             />
@@ -235,6 +259,83 @@ export function ProjectGrid({
         </div>
       )}
     </div>
+  );
+}
+
+function ProjectCardTile({
+  card,
+  desktop,
+  editable,
+  fontPx,
+  openCount,
+  isActive,
+  onRequestDelete,
+  onLongPressStart,
+  onLongPressEnd,
+}: {
+  card: ProjectGridCardModel;
+  desktop: boolean;
+  editable: boolean;
+  fontPx: number;
+  openCount: number;
+  isActive: boolean;
+  onRequestDelete: () => void;
+  onLongPressStart?: () => void;
+  onLongPressEnd: () => void;
+}) {
+  const { style, ...rootProps } = card.rootProps;
+  return (
+    <motion.article
+      {...rootProps}
+      whileTap={desktop ? undefined : { scale: 0.96 }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onRequestDelete();
+      }}
+      onTouchStart={onLongPressStart}
+      onTouchEnd={onLongPressEnd}
+      onTouchMove={onLongPressEnd}
+      className={`group relative flex flex-col items-start gap-1.5 overflow-hidden rounded-2xl p-3 text-left outline-none transition-[box-shadow,opacity,transform,background-color] focus-visible:ring-2 focus-visible:ring-accent ${
+        isActive ? 'bg-bg-elevated text-text-primary' : 'bg-bg-card'
+      } ${
+        desktop && editable ? 'cursor-grab touch-none active:cursor-grabbing' : ''
+      } ${card.isDragging || card.isResizing ? 'opacity-80' : ''}`}
+      style={{
+        ...style,
+        boxShadow: card.isDragging || card.isResizing
+          ? NEU.modal
+          : (isActive ? NEU.pressedSm : NEU.raised),
+      }}
+    >
+      <div className="flex items-center gap-2 w-full min-w-0">
+        {card.project.icon ? (
+          <span className="text-lg leading-none shrink-0">{card.project.icon}</span>
+        ) : (
+          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: card.project.color }} />
+        )}
+        <span className="font-medium text-text-primary truncate" style={{ fontSize: `${fontPx}px` }}>
+          {card.project.name}
+        </span>
+      </div>
+      {openCount > 0 && (
+        <span className="text-[11px] text-text-muted tabular-nums">
+          {openCount}
+        </span>
+      )}
+
+      {desktop && editable && (
+        <button
+          {...card.resizeHandleProps}
+          data-project-card-action
+          className="absolute bottom-1.5 right-1.5 h-5 w-5 rounded-md text-text-muted/70 transition-opacity hover:text-text-secondary can-hover:opacity-0 can-hover:group-hover:opacity-100 focus-visible:opacity-100 cursor-nwse-resize"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M4 10h6V4" />
+            <path d="M7 10h3V7" />
+          </svg>
+        </button>
+      )}
+    </motion.article>
   );
 }
 

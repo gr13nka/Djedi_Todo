@@ -34,7 +34,7 @@ const MAX_TASK_PANEL_HEIGHT_RATIO = 0.7;
 export function ProjectsView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { projects, createProject, updateProject, deleteProject } = useProjects();
+  const { projects, createProject, updateProject, deleteProject, moveProjects } = useProjects();
   const { activities } = useActivities();
   const timeTrackingVisible = useSettingsStore((s) => s.timeTrackingVisible);
   const { projectListFontPx } = useProjectTypography();
@@ -398,6 +398,8 @@ export function ProjectsView() {
                   const project = projects.find((p) => p.id === projectId);
                   if (project) setGridDeleteProject(project);
                 },
+                moveProjectsToFolders: (moves) =>
+                  moveProjects(moves.map((move) => ({ id: move.projectId, folderId: move.folderId }))),
               }}
             />
           ) : (
@@ -762,6 +764,8 @@ export function ProjectsView() {
                 const project = projects.find((p) => p.id === projectId);
                 if (project) setGridDeleteProject(project);
               },
+              moveProjectsToFolders: (moves) =>
+                moveProjects(moves.map((move) => ({ id: move.projectId, folderId: move.folderId }))),
             }}
           />
         ) : (

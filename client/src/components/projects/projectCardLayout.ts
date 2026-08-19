@@ -11,6 +11,21 @@ export const MIN_CARD_HEIGHT_PX = PROJECT_CARD_ROW_PX;
 export const DEFAULT_CARD_WIDTH_PX = 240;
 export const DEFAULT_CARD_HEIGHT_PX = 2 * PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
 
+/** Breathing room inside a folder zone, and the strip its label occupies. */
+export const ZONE_PADDING_PX = 12;
+export const ZONE_LABEL_PX = 28;
+
+/** Size a zone gets when a folder turns out not to have one — room for four default cards. */
+export const DEFAULT_ZONE_WIDTH_PX = 2 * DEFAULT_CARD_WIDTH_PX + 3 * ZONE_PADDING_PX;
+export const DEFAULT_ZONE_HEIGHT_PX = ZONE_LABEL_PX + 2 * (DEFAULT_CARD_HEIGHT_PX + ZONE_PADDING_PX);
+
+/**
+ * Cards always render above zones, so the two keep separate stacking counters and the card
+ * layer is lifted clear of the zone layer at render time. Sharing one counter would let a
+ * zone that was dragged recently cover the cards inside it.
+ */
+export const CARD_LAYER_BASE = 1000;
+
 /** Distance from one card's top edge to the next one's in the retired cell grid. */
 const ROW_STEP_PX = PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
 
@@ -201,10 +216,15 @@ export function framesBottom(frames: ProjectCardFrame[]): number {
 }
 
 /**
- * Brings the stored layout in line with the projects that actually exist: stale entries are
- * dropped, and a project without a frame gets one. Saved frames are returned untouched —
- * where a card sits is the user's answer, and the board no longer has an opinion about
- * overlap.
+ * Brings the stored layout in line with what actually exists: stale entries are dropped,
+ * every folder gets a zone, and every project gets a card.
+ *
+ * Saved frames come back untouched. Where a card sits is the user's answer and the board has
+ * no opinion about overlap — and, crucially, no opinion about folders either: this function
+ * never moves a card to agree with its `folderId`. Doing so would fight the drop that just
+ * happened, because the card reaches its new zone a render before the `folderId` write comes
+ * back through the live query. Reconciling the two directions is the hook's job, which can
+ * tell an external folder change from one the board itself just made.
  */
 export function reconcileProjectGridLayout(
   projects: Project[],
@@ -213,54 +233,159 @@ export function reconcileProjectGridLayout(
   boardWidth: number,
 ): ProjectGridLayout {
   const layout = normalizeProjectGridLayout(value, boardWidth);
-  const sections = groupProjectsForGrid(projects, folders);
   const next = emptyProjectGridLayout();
-  next.folders = layout.folders;
+  const activeProjects = projects.filter((project) => !project.isArchived);
 
-  for (const section of sections) {
-    const placed: ProjectCardFrame[] = [];
-    const unplaced: Project[] = [];
-    let stacking = 0;
-
-    for (const project of section.projects) {
-      const saved = layout.cards[project.id];
-      if (saved) {
-        placed.push(saved);
-        next.cards[project.id] = saved;
-        stacking = Math.max(stacking, saved.z);
-      } else {
-        unplaced.push(project);
-      }
+  let zoneStacking = 0;
+  const unzoned: ProjectFolder[] = [];
+  for (const folder of folders) {
+    const saved = layout.folders[folder.id];
+    if (saved) {
+      next.folders[folder.id] = saved;
+      zoneStacking = Math.max(zoneStacking, saved.z);
+    } else {
+      unzoned.push(folder);
     }
-
-    const below = placed.length ? framesBottom(placed) + PROJECT_CARD_GAP_PX : 0;
-    unplaced.forEach((project, index) => {
-      next.cards[project.id] = appendProjectCardFrame(index, below, stacking + 1 + index, boardWidth);
-    });
   }
+
+  const placedZones = Object.values(next.folders);
+  const zonesBelow = placedZones.length ? framesBottom(placedZones) + PROJECT_CARD_GAP_PX : 0;
+  unzoned.forEach((folder, index) => {
+    next.folders[folder.id] = appendFolderZoneFrame(index, zonesBelow, zoneStacking + 1 + index, boardWidth);
+  });
+
+  let cardStacking = 0;
+  const unplaced: Project[] = [];
+  for (const project of activeProjects) {
+    const saved = layout.cards[project.id];
+    if (saved) {
+      next.cards[project.id] = saved;
+      cardStacking = Math.max(cardStacking, saved.z);
+    } else {
+      unplaced.push(project);
+    }
+  }
+
+  // A card the board has never placed goes inside its folder's zone, so geometry and
+  // `folderId` start out agreeing rather than needing a correction on the first render.
+  const zoneFill = new Map<string, number>();
+  for (const project of activeProjects) {
+    const folderId = project.folderId ?? null;
+    if (!folderId || !next.cards[project.id]) continue;
+    zoneFill.set(folderId, (zoneFill.get(folderId) ?? 0) + 1);
+  }
+
+  const loose = Object.values(next.cards).concat(Object.values(next.folders));
+  const looseBelow = loose.length ? framesBottom(loose) + PROJECT_CARD_GAP_PX : 0;
+  let unfiledIndex = 0;
+
+  unplaced.forEach((project, index) => {
+    const folderId = project.folderId ?? null;
+    const zone = folderId ? next.folders[folderId] : undefined;
+    const z = cardStacking + 1 + index;
+    if (zone) {
+      const slot = zoneFill.get(folderId as string) ?? 0;
+      zoneFill.set(folderId as string, slot + 1);
+      next.cards[project.id] = { ...placeCardInZone(zone, slot, boardWidth), z };
+    } else {
+      next.cards[project.id] = appendProjectCardFrame(unfiledIndex++, looseBelow, z, boardWidth);
+    }
+  });
 
   return next;
 }
 
-/** One above every frame currently in the layout, so a grabbed card comes to the front. */
-export function topStackingOrder(layout: ProjectGridLayout): number {
-  const frames = [...Object.values(layout.cards), ...Object.values(layout.folders)];
+function topOf(frames: ProjectCardFrame[]): number {
   return frames.reduce((top, frame) => Math.max(top, frame.z), 0) + 1;
 }
 
-export function updateProjectFrameInLayout(
+/** One above every card, so a grabbed card comes to the front of its layer. */
+export function topCardStackingOrder(layout: ProjectGridLayout): number {
+  return topOf(Object.values(layout.cards));
+}
+
+/** One above every zone, so a grabbed zone comes to the front of its layer. */
+export function topZoneStackingOrder(layout: ProjectGridLayout): number {
+  return topOf(Object.values(layout.folders));
+}
+
+export function frameContainsPoint(frame: ProjectCardFrame, x: number, y: number): boolean {
+  return x >= frame.x && x < frame.x + frame.w && y >= frame.y && y < frame.y + frame.h;
+}
+
+/**
+ * Which folder a card at (x, y) belongs to.
+ *
+ * Membership is decided by the card's top-left corner and nothing else. Cards may overlap
+ * zones and each other, so "how much of the card is inside" has no answer worth defending;
+ * one point always has exactly one answer. Where zones overlap, the topmost one wins.
+ */
+export function folderZoneAtPoint(
+  zones: Record<string, ProjectCardFrame>,
+  x: number,
+  y: number,
+): string | null {
+  let winner: string | null = null;
+  let winnerZ = -Infinity;
+  for (const [folderId, zone] of Object.entries(zones)) {
+    if (!frameContainsPoint(zone, x, y)) continue;
+    if (zone.z < winnerZ) continue;
+    winner = folderId;
+    winnerZ = zone.z;
+  }
+  return winner;
+}
+
+/** Slot `index` inside a zone, packed left to right under the zone's label. */
+export function placeCardInZone(
+  zone: ProjectCardFrame,
+  index: number,
+  boardWidth: number,
+): ProjectCardFrame {
+  const width = boardWidthOrDefault(boardWidth);
+  const padding = ZONE_PADDING_PX / width;
+  const innerX = zone.x + padding;
+  const innerWidth = Math.max(padding, zone.w - 2 * padding);
+  const cardWidth = Math.min(DEFAULT_CARD_WIDTH_PX / width, innerWidth);
+  const perRow = Math.max(1, Math.floor(innerWidth / cardWidth));
+  return sanitizeProjectCardFrame({
+    x: innerX + (index % perRow) * cardWidth,
+    y: zone.y + ZONE_LABEL_PX + Math.floor(index / perRow) * (DEFAULT_CARD_HEIGHT_PX + ZONE_PADDING_PX),
+    w: cardWidth,
+    h: DEFAULT_CARD_HEIGHT_PX,
+    z: 0,
+  }, boardWidth);
+}
+
+/** Where a folder that has no zone yet gets one: a row of zones below everything placed. */
+export function appendFolderZoneFrame(
+  index: number,
+  below: number,
+  z: number,
+  boardWidth: number,
+): ProjectCardFrame {
+  const width = boardWidthOrDefault(boardWidth);
+  const w = Math.min(1, DEFAULT_ZONE_WIDTH_PX / width);
+  const perRow = Math.max(1, Math.floor(1 / w));
+  return sanitizeProjectCardFrame({
+    x: (index % perRow) * w,
+    y: below + Math.floor(index / perRow) * (DEFAULT_ZONE_HEIGHT_PX + PROJECT_CARD_GAP_PX),
+    w,
+    h: DEFAULT_ZONE_HEIGHT_PX,
+    z,
+  }, boardWidth);
+}
+
+/** The one writer into a layout: merges frame patches over what is already stored. */
+export function applyFramesToLayout(
   value: ProjectGridLayout | null | undefined,
-  projectId: string,
-  frame: ProjectCardFrame,
+  patch: { cards?: Record<string, ProjectCardFrame>; folders?: Record<string, ProjectCardFrame> },
   boardWidth: number,
 ): ProjectGridLayout {
   const layout = normalizeProjectGridLayout(value, boardWidth);
   return {
     version: 2,
-    cards: {
-      ...layout.cards,
-      [projectId]: frame,
-    },
-    folders: layout.folders,
+    cards: { ...layout.cards, ...patch.cards },
+    folders: { ...layout.folders, ...patch.folders },
   };
 }
