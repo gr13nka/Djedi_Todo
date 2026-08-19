@@ -7,7 +7,11 @@ import { useProjectCardLayout } from './useProjectCardLayout';
 import type { ProjectFolderMove, ProjectGridCardModel } from './useProjectCardLayout';
 import type { ProjectBoardFacts } from '../../hooks/useProjectsBoard';
 import {
+  MAX_BOARD_ZOOM,
+  MIN_BOARD_ZOOM,
   MOBILE_COLUMN_COUNT,
+  adjustBoardZoom,
+  sanitizeBoardZoom,
   PROJECT_CARD_ROW_PX,
   estimateMobileCardHeight,
   layoutMasonryColumns,
@@ -33,6 +37,8 @@ interface ProjectGridProps {
   facts?: Record<string, ProjectBoardFacts>;
   idleSignalsVisible?: boolean;
   onToggleIdleSignals?: () => void;
+  boardZoom?: number;
+  onZoomChange?: (next: number) => void;
   layout: ProjectGridLayout;
   onLayoutChange: (next: ProjectGridLayout) => void | Promise<void>;
   viewport: 'mobile' | 'desktop';
@@ -80,6 +86,8 @@ export function ProjectGrid({
   facts = {},
   idleSignalsVisible = false,
   onToggleIdleSignals,
+  boardZoom = 1,
+  onZoomChange,
   layout,
   onLayoutChange,
   viewport,
@@ -92,6 +100,9 @@ export function ProjectGrid({
   const { t } = useTranslation();
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDesktop = viewport === 'desktop';
+  // Zoom applies to the wide canvas only; the narrow board is a reading layout with no
+  // coordinates of its own to scale.
+  const zoom = isDesktop ? sanitizeBoardZoom(boardZoom) : 1;
   const grid = useProjectCardLayout({
     projects,
     folders,
@@ -100,6 +111,7 @@ export function ProjectGrid({
     viewport,
     editable: editable && isDesktop,
     onActivate: actions.openProject,
+    zoom,
     onFolderChange: actions.moveProjectsToFolders,
   });
 
@@ -119,6 +131,38 @@ export function ProjectGrid({
             {t('projects.title')}
           </span>
           <div className="flex items-center gap-1.5">
+            {onZoomChange && (
+              <div className="flex items-center rounded-lg" style={{ boxShadow: NEU.raisedSm }}>
+                <button
+                  type="button"
+                  onClick={() => onZoomChange(adjustBoardZoom(zoom, -1))}
+                  disabled={zoom <= MIN_BOARD_ZOOM}
+                  className="h-7 w-6 flex items-center justify-center rounded-l-lg text-text-muted hover:text-accent disabled:opacity-40 transition-colors"
+                  title={t('projects.zoomOut')}
+                  aria-label={t('projects.zoomOut')}
+                >
+                  &minus;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onZoomChange(1)}
+                  className="h-7 px-1 text-[11px] text-text-muted hover:text-accent tabular-nums transition-colors"
+                  title={t('projects.zoomReset')}
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onZoomChange(adjustBoardZoom(zoom, 1))}
+                  disabled={zoom >= MAX_BOARD_ZOOM}
+                  className="h-7 w-6 flex items-center justify-center rounded-r-lg text-text-muted hover:text-accent disabled:opacity-40 transition-colors"
+                  title={t('projects.zoomIn')}
+                  aria-label={t('projects.zoomIn')}
+                >
+                  +
+                </button>
+              </div>
+            )}
             {onToggleIdleSignals && (
               <button
                 type="button"
@@ -176,10 +220,19 @@ export function ProjectGrid({
       ) : isDesktop ? (
         <div className="flex flex-col gap-4">
           {/* One canvas: zones are rectangles behind the cards, in the same coordinate space. */}
+          {/* The outer box reserves the scaled height, because a transform does not affect
+              layout and the page would otherwise refuse to scroll to the bottom of a
+              zoomed-in board. The inner box is the canvas, sized in board coordinates. */}
+          <div style={{ height: (grid.boardHeight + BOARD_TRAILING_SPACE_PX) * zoom }}>
           <div
             data-project-board
             className="relative min-w-0"
-            style={{ height: grid.boardHeight + BOARD_TRAILING_SPACE_PX }}
+            style={{
+              width: `${100 / zoom}%`,
+              height: grid.boardHeight + BOARD_TRAILING_SPACE_PX,
+              transformOrigin: '0 0',
+              transform: `scale(${zoom})`,
+            }}
           >
             {grid.zones.map((zone) => (
               <div
@@ -235,6 +288,7 @@ export function ProjectGrid({
                 onLongPressEnd={clearLongPress}
               />
             ))}
+          </div>
           </div>
 
           <div className="max-w-xs">

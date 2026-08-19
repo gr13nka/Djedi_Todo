@@ -61,6 +61,7 @@ export function ProjectsView() {
   const setSplitDirection = useProjectUIStore((s) => s.setSplitDirection);
   const navPosition = useSettingsStore((s) => s.navPosition);
   const projectGridLayout = useSettingsStore((s) => s.projectGridLayout);
+  const boardZoom = useSettingsStore((s) => s.boardZoom);
   const updateSettings = useSettingsStore((s) => s.update);
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -690,6 +691,8 @@ export function ProjectsView() {
             facts={boardFacts}
             idleSignalsVisible={idleSignalsVisible}
             onToggleIdleSignals={toggleIdleSignals}
+            boardZoom={boardZoom}
+            onZoomChange={(next) => updateSettings({ boardZoom: next })}
             fontPx={projectListFontPx}
             notePx={projectNoteFontPx}
             layout={projectGridLayout}

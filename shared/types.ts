@@ -116,6 +116,8 @@ export interface DeviceSettings {
   projectGridLayout: ProjectGridLayout;
   /** Shows both board idle-day counts and the tree's no-next-action dots. */
   boardIdleSignalsVisible: boolean;
+  /** Board zoom factor. Scales the canvas visually; the stored frames never change. */
+  boardZoom: number;
   /** Pane sizes on /projects, in pixels. Device-local, like the board layout they sit beside. */
   projectSidebarWidth: number;
   projectTaskPaneWidth: number;

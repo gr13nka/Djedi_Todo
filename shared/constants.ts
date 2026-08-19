@@ -99,6 +99,7 @@ export const DEFAULT_DEVICE_SETTINGS = {
     folders: {},
   },
   boardIdleSignalsVisible: false,
+  boardZoom: 1,
   projectSidebarWidth: 220,
   projectTaskPaneWidth: 288,
   projectTaskPaneHeight: 240,

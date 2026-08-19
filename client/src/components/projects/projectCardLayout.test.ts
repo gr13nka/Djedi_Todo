@@ -16,8 +16,10 @@ import {
   MOBILE_COLUMN_COUNT,
   ZONE_LABEL_PX,
   estimateMobileCardHeight,
+  adjustBoardZoom,
   layoutMasonryColumns,
   mobileExcerptCharsPerLine,
+  sanitizeBoardZoom,
   folderZoneAtPoint,
   frameContainsPoint,
   placeCardInZone,
@@ -291,6 +293,18 @@ describe('project card layout', () => {
   it('never divides by a zero-width column', () => {
     expect(mobileExcerptCharsPerLine(0)).toBeGreaterThan(0);
     expect(layoutMasonryColumns([{ height: 10 }], 0)).toHaveLength(1);
+  });
+
+  it('steps the zoom and refuses to leave its range', () => {
+    expect(adjustBoardZoom(1, 1)).toBeCloseTo(1.1);
+    expect(adjustBoardZoom(1, -1)).toBeCloseTo(0.9);
+    expect(adjustBoardZoom(2, 1)).toBe(2);
+    expect(adjustBoardZoom(0.5, -1)).toBe(0.5);
+    // A stored value from anywhere is clamped rather than trusted.
+    expect(sanitizeBoardZoom(99)).toBe(2);
+    expect(sanitizeBoardZoom(0)).toBe(0.5);
+    expect(sanitizeBoardZoom(undefined)).toBe(1);
+    expect(sanitizeBoardZoom(Number.NaN)).toBe(1);
   });
 
   it('never moves a placed card to agree with its folder — that is the hook\'s call', () => {

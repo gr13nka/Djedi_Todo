@@ -104,6 +104,8 @@ interface UseProjectCardLayoutOptions {
   viewport: ProjectGridViewport;
   editable: boolean;
   onActivate: (projectId: string) => void;
+  /** Visual scale of the canvas. Frames are stored unscaled; this only changes what is seen. */
+  zoom: number;
   /** Called when a drop puts cards in different folders than the ones they record. */
   onFolderChange: (moves: ProjectFolderMove[]) => void | Promise<void>;
 }
@@ -125,6 +127,7 @@ export function useProjectCardLayout({
   viewport,
   editable,
   onActivate,
+  zoom,
   onFolderChange,
 }: UseProjectCardLayoutOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -136,8 +139,10 @@ export function useProjectCardLayout({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<InteractionKind | null>(null);
 
-  // Every geometry call is against the board's measured width; there is no column grid left.
-  const boardWidth = containerWidth;
+  // The container is measured on screen, but frames live in unscaled board coordinates, so
+  // every geometry call works in the width the board would have at 100%. Zoom therefore never
+  // touches a stored frame — it only changes how much of the board a screen holds.
+  const boardWidth = containerWidth / (zoom || 1);
 
   useEffect(() => {
     const next = value ?? emptyProjectGridLayout();
@@ -312,14 +317,18 @@ export function useProjectCardLayout({
     if (!active.moved && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD_PX) return;
     active.moved = true;
 
-    // The pointer moves in pixels; the frame stores width as a fraction of the board.
-    const width = getBoardWidth();
-    const fractionDelta = deltaX / width;
+    // The pointer moves in screen pixels. Horizontally that converts for free — a fraction of
+    // the screen is the same fraction of the board however the board is scaled. Vertically it
+    // does not, because `y` and `h` are stored in board pixels.
+    const screenWidth = getBoardWidth();
+    const width = screenWidth / (zoom || 1);
+    const fractionDelta = deltaX / screenWidth;
+    const verticalDelta = deltaY / (zoom || 1);
     const moving = active.kind === 'move' || active.kind === 'zone-move';
 
     const desired = moving
-      ? { ...active.startFrame, x: active.startFrame.x + fractionDelta, y: active.startFrame.y + deltaY }
-      : { ...active.startFrame, w: active.startFrame.w + fractionDelta, h: active.startFrame.h + deltaY };
+      ? { ...active.startFrame, x: active.startFrame.x + fractionDelta, y: active.startFrame.y + verticalDelta }
+      : { ...active.startFrame, w: active.startFrame.w + fractionDelta, h: active.startFrame.h + verticalDelta };
     const nextFrame = sanitizeProjectCardFrame(desired, width);
 
     const cards: Record<string, ProjectCardFrame> = {};
@@ -338,7 +347,7 @@ export function useProjectCardLayout({
     }
 
     commitLayout(applyFramesToLayout(draftRef.current, { cards, folders: zones }, width));
-  }, [commitLayout, getBoardWidth]);
+  }, [commitLayout, getBoardWidth, zoom]);
 
   const endInteraction = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const active = activeRef.current;

@@ -442,3 +442,17 @@ export function layoutMasonryColumns<T extends MasonryItem>(items: T[], columns:
 
   return buckets;
 }
+
+export const MIN_BOARD_ZOOM = 0.5;
+export const MAX_BOARD_ZOOM = 2;
+const BOARD_ZOOM_STEP = 0.1;
+
+export function adjustBoardZoom(current: number, direction: 1 | -1): number {
+  const next = (Number.isFinite(current) ? current : 1) + direction * BOARD_ZOOM_STEP;
+  return Math.min(MAX_BOARD_ZOOM, Math.max(MIN_BOARD_ZOOM, Math.round(next * 100) / 100));
+}
+
+export function sanitizeBoardZoom(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+  return Math.min(MAX_BOARD_ZOOM, Math.max(MIN_BOARD_ZOOM, value));
+}
