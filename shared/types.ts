@@ -120,16 +120,32 @@ export interface DeviceSettings {
 
 export type PersistedDeviceSettings = Omit<DeviceSettings, 'id'>;
 
+/**
+ * One rectangle on the projects board — a project card, or (from v2 on) a folder zone.
+ *
+ * Horizontal geometry is a fraction of the board's width while vertical geometry is in
+ * pixels. A fraction keeps an arrangement intact when the window is resized; a height in
+ * pixels is the honest unit for "how much of the note excerpt does this card show".
+ */
 export interface ProjectCardFrame {
-  col: number;
-  row: number;
-  colSpan: 1 | 2 | 3 | 4;
-  rowSpan: 1 | 2 | 3;
+  /** Left edge, as a fraction of board width (0..1). */
+  x: number;
+  /** Top edge, in pixels from the top of the board. */
+  y: number;
+  /** Width, as a fraction of board width (0..1]. */
+  w: number;
+  /** Height, in pixels. */
+  h: number;
+  /** Stacking order among overlapping frames; the one touched last sits highest. */
+  z: number;
 }
 
 export interface ProjectGridLayout {
-  version: 1;
-  desktop: Record<string, ProjectCardFrame>;
+  version: 2;
+  /** Card rectangles keyed by project id. */
+  cards: Record<string, ProjectCardFrame>;
+  /** Folder-zone rectangles keyed by folder id; filled once zones land. */
+  folders: Record<string, ProjectCardFrame>;
 }
 
 export type BarStyle = 'thick-linear' | 'segmented' | 'circular';

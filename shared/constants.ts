@@ -95,8 +95,9 @@ export const DEFAULT_DEVICE_SETTINGS = {
   ] as string[][],
   projectGridEnabled: false,
   projectGridLayout: {
-    version: 1,
-    desktop: {},
+    version: 2,
+    cards: {},
+    folders: {},
   },
   taskSelectionDesktopSwipeEnabled: false,
 } satisfies PersistedDeviceSettings;

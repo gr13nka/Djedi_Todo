@@ -7,7 +7,10 @@ import {
   emptyProjectGridLayout,
   getProjectGridColumnCount,
   groupProjectsForGrid,
+  isLegacyProjectGridLayout,
+  normalizeProjectGridLayout,
   placeProjectCardFrame,
+  projectCardFrameToGridCell,
   reconcileProjectGridLayout,
   sanitizeProjectCardFrame,
   updateProjectFrameInLayout,
@@ -74,6 +77,11 @@ interface UseProjectCardLayoutOptions {
 
 const DRAG_THRESHOLD_PX = 4;
 
+/** Stand-in for a card the layout has not placed yet; reconcile replaces it on the next pass. */
+function fallbackFrame(columns: number): ProjectCardFrame {
+  return { x: 0, y: 0, w: 1 / Math.max(1, columns), h: PROJECT_CARD_ROW_PX, z: 0 };
+}
+
 function sameLayout(a: ProjectGridLayout, b: ProjectGridLayout): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -119,6 +127,20 @@ export function useProjectCardLayout({
     [projects, folders, draftLayout, columns],
   );
 
+  // Cells convert to fractions only against the column count they were written under, and
+  // that count is not part of the stored payload — it is whatever the board is wide enough
+  // for right now. So a v1 layout is rewritten as v2 at the first measured desktop render,
+  // while the board is still the width it was when those cells were saved. Waiting for the
+  // next drag would migrate against whatever width the board has by then.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current) return;
+    if (viewport !== 'desktop' || containerWidth <= 0) return;
+    if (!isLegacyProjectGridLayout(value)) return;
+    migratedRef.current = true;
+    void onChange(normalizeProjectGridLayout(value, columns));
+  }, [columns, containerWidth, onChange, value, viewport]);
+
   const commitLayout = useCallback((next: ProjectGridLayout) => {
     draftRef.current = next;
     setDraftLayout(next);
@@ -138,12 +160,12 @@ export function useProjectCardLayout({
     const sectionProjects = getSectionProjects(projectId);
     const occupied = sectionProjects
       .filter((project) => project.id !== projectId)
-      .map((project) => arrangedLayout.desktop[project.id])
+      .map((project) => arrangedLayout.cards[project.id])
       .filter(Boolean)
       .map((frame) => sanitizeProjectCardFrame(frame, columns));
 
     return placeProjectCardFrame(desired, occupied, columns);
-  }, [arrangedLayout.desktop, columns, getSectionProjects]);
+  }, [arrangedLayout.cards, columns, getSectionProjects]);
 
   const getGridMetrics = useCallback((target: HTMLElement) => {
     const section = target.closest('[data-project-grid-section]') as HTMLElement | null;
@@ -161,7 +183,7 @@ export function useProjectCardLayout({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const frame = arrangedLayout.desktop[projectId] ?? { col: 0, row: 0, colSpan: 1, rowSpan: 1 };
+    const frame = arrangedLayout.cards[projectId] ?? fallbackFrame(columns);
     activeRef.current = {
       kind,
       projectId,
@@ -174,7 +196,7 @@ export function useProjectCardLayout({
     event.currentTarget.setPointerCapture(event.pointerId);
     setActiveProjectId(projectId);
     setActiveKind(kind);
-  }, [arrangedLayout.desktop, editable, viewport]);
+  }, [arrangedLayout.cards, columns, editable, viewport]);
 
   const updateInteraction = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const active = activeRef.current;
@@ -185,23 +207,25 @@ export function useProjectCardLayout({
     active.moved = true;
 
     const { colWidth, rowHeight } = getGridMetrics(event.currentTarget);
-    const colDelta = Math.round(deltaX / (colWidth + PROJECT_CARD_GAP_PX));
-    const rowDelta = Math.round(deltaY / (rowHeight + PROJECT_CARD_GAP_PX));
+    // Frames are fractions now, but the board still snaps to whole cells, so a drag is
+    // measured in cells and then converted back into the stored units.
+    const colDelta = Math.round(deltaX / (colWidth + PROJECT_CARD_GAP_PX)) / columns;
+    const rowDelta = Math.round(deltaY / (rowHeight + PROJECT_CARD_GAP_PX)) * (rowHeight + PROJECT_CARD_GAP_PX);
 
     const desired = active.kind === 'move'
       ? {
           ...active.startFrame,
-          col: active.startFrame.col + colDelta,
-          row: active.startFrame.row + rowDelta,
+          x: active.startFrame.x + colDelta,
+          y: active.startFrame.y + rowDelta,
         }
       : {
           ...active.startFrame,
-          colSpan: active.startFrame.colSpan + colDelta,
-          rowSpan: active.startFrame.rowSpan + rowDelta,
+          w: active.startFrame.w + colDelta,
+          h: active.startFrame.h + rowDelta,
         };
 
     const nextFrame = resolveFrame(active.projectId, sanitizeProjectCardFrame(desired, columns));
-    commitLayout(updateProjectFrameInLayout(draftRef.current, active.projectId, nextFrame));
+    commitLayout(updateProjectFrameInLayout(draftRef.current, active.projectId, nextFrame, columns));
   }, [columns, commitLayout, getGridMetrics, resolveFrame]);
 
   const endInteraction = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -229,14 +253,15 @@ export function useProjectCardLayout({
     return grouped.map((section) => ({
       folder: section.folder,
       cards: section.projects.map((project) => {
-        const frame = arrangedLayout.desktop[project.id] ?? { col: 0, row: 0, colSpan: 1, rowSpan: 1 };
+        const frame = arrangedLayout.cards[project.id] ?? fallbackFrame(columns);
         const isDragging = activeProjectId === project.id && activeKind === 'move';
         const isResizing = activeProjectId === project.id && activeKind === 'resize';
+        const cell = projectCardFrameToGridCell(frame, columns);
         const desktopStyle: React.CSSProperties = viewport === 'desktop'
           ? {
-              gridColumn: `${frame.col + 1} / span ${frame.colSpan}`,
-              gridRow: `${frame.row + 1} / span ${frame.rowSpan}`,
-              minHeight: frame.rowSpan * PROJECT_CARD_ROW_PX + (frame.rowSpan - 1) * PROJECT_CARD_GAP_PX,
+              gridColumn: `${cell.col + 1} / span ${cell.colSpan}`,
+              gridRow: `${cell.row + 1} / span ${cell.rowSpan}`,
+              minHeight: frame.h,
             }
           : {};
 
@@ -279,15 +304,20 @@ export function useProjectCardLayout({
         };
       }),
     }));
-  }, [activeKind, activeProjectId, arrangedLayout.desktop, beginInteraction, endInteraction, folders, onActivate, projects, updateInteraction, viewport]);
+  }, [activeKind, activeProjectId, arrangedLayout.cards, beginInteraction, columns, endInteraction, folders, onActivate, projects, updateInteraction, viewport]);
 
   const resetLayout = useCallback((projectId?: string) => {
-    const current = { ...draftRef.current.desktop };
+    const current = { ...draftRef.current.cards };
     if (projectId) delete current[projectId];
     else {
       for (const key of Object.keys(current)) delete current[key];
     }
-    const next = reconcileProjectGridLayout(projects, folders, { version: 1, desktop: current }, columns);
+    const next = reconcileProjectGridLayout(
+      projects,
+      folders,
+      { version: 2, cards: current, folders: draftRef.current.folders },
+      columns,
+    );
     if (!sameLayout(next, draftRef.current)) {
       commitLayout(next);
       void onChange(next);
