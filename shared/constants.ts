@@ -98,6 +98,7 @@ export const DEFAULT_DEVICE_SETTINGS = {
     cards: {},
     folders: {},
   },
+  boardIdleDaysVisible: false,
   taskSelectionDesktopSwipeEnabled: false,
 } satisfies PersistedDeviceSettings;
 

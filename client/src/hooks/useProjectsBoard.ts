@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import type { Project, ProjectTask } from '@shared/types';
 import { db } from '../db';
+import { useSettingsStore } from '../stores/settingsStore';
 import { stripMarkdown } from '../utils/markdown';
 
 const MS_PER_DAY = 86_400_000;
@@ -77,19 +78,21 @@ export function daysSince(momentMs: number, nowMs: number): number {
  * renaming or recolouring a project, a bulk reorder writing every row, and vault sync
  * replacing a row wholesale under last-writer-wins.
  */
-export function useProjectsBoard(projects: Project[]): Record<string, ProjectBoardFacts> {
+export function useProjectsBoard(projects: Project[]) {
   const activity = useLiveQuery(
     () => db.projectTasks.filter((task) => !task.deletedAt).toArray().then(foldProjectTaskActivity),
     [],
   );
   const [now, setNow] = useState(() => Date.now());
+  const idleDaysVisible = useSettingsStore((s) => s.boardIdleDaysVisible);
+  const updateSettings = useSettingsStore((s) => s.update);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), IDLE_RECOMPUTE_MS);
     return () => clearInterval(interval);
   }, []);
 
-  return useMemo(() => {
+  const facts = useMemo(() => {
     const facts: Record<string, ProjectBoardFacts> = {};
     for (const project of projects) {
       const entry = activity?.[project.id];
@@ -103,4 +106,10 @@ export function useProjectsBoard(projects: Project[]): Record<string, ProjectBoa
     }
     return facts;
   }, [activity, now, projects]);
+
+  const toggleIdleDays = () => {
+    updateSettings({ boardIdleDaysVisible: !idleDaysVisible });
+  };
+
+  return { facts, idleDaysVisible, toggleIdleDays };
 }

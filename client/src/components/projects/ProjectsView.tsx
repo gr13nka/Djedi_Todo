@@ -44,7 +44,7 @@ export function ProjectsView() {
   );
   // Open counts, note excerpts and idle days for every project in one fold — the board's
   // cards, the tree rows and the days toggle all read the same figures.
-  const boardFacts = useProjectsBoard(projects);
+  const { facts: boardFacts, idleDaysVisible, toggleIdleDays } = useProjectsBoard(projects);
   const activeTabId = useProjectUIStore((s) => s.activeTabId);
   // Tasks dragged out of the task panel into the description are soft-deleted
   // through the same cascade every other deletion uses — useProjectTasks owns
@@ -679,6 +679,8 @@ export function ProjectsView() {
             projects={projects}
             folders={folders}
             facts={boardFacts}
+            idleDaysVisible={idleDaysVisible}
+            onToggleIdleDays={toggleIdleDays}
             fontPx={projectListFontPx}
             layout={projectGridLayout}
             onLayoutChange={(next) => updateSettings({ projectGridLayout: next })}

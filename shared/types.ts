@@ -114,6 +114,7 @@ export interface DeviceSettings {
   bottomNavScrollable: boolean;
   bottomNavPages: string[][];
   projectGridLayout: ProjectGridLayout;
+  boardIdleDaysVisible: boolean;
   taskSelectionDesktopSwipeEnabled: boolean;
 }
 

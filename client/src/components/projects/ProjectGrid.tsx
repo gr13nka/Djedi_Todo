@@ -31,6 +31,8 @@ interface ProjectGridProps {
   folders: ProjectFolder[];
   /** What each card says beyond its name, keyed by project id. */
   facts?: Record<string, ProjectBoardFacts>;
+  idleDaysVisible?: boolean;
+  onToggleIdleDays?: () => void;
   layout: ProjectGridLayout;
   onLayoutChange: (next: ProjectGridLayout) => void | Promise<void>;
   viewport: 'mobile' | 'desktop';
@@ -49,6 +51,17 @@ function PlusIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+function HourglassIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 22h14" />
+      <path d="M5 2h14" />
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+    </svg>
+  );
+}
+
 function FolderPlusIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -63,6 +76,8 @@ export function ProjectGrid({
   projects,
   folders,
   facts = {},
+  idleDaysVisible = false,
+  onToggleIdleDays,
   layout,
   onLayoutChange,
   viewport,
@@ -101,6 +116,21 @@ export function ProjectGrid({
             {t('projects.title')}
           </span>
           <div className="flex items-center gap-1.5">
+            {onToggleIdleDays && (
+              <button
+                type="button"
+                onClick={onToggleIdleDays}
+                aria-pressed={idleDaysVisible}
+                className={`h-7 px-2 flex items-center gap-1.5 rounded-lg text-[11px] transition-colors ${
+                  idleDaysVisible ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
+                }`}
+                style={{ boxShadow: idleDaysVisible ? NEU.pressedSm : NEU.raisedSm }}
+                title={t('projects.idleDays')}
+              >
+                <HourglassIcon />
+                <span className="hidden sm:inline">{t('projects.idleDays')}</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={actions.requestAddFolder}
@@ -194,6 +224,7 @@ export function ProjectGrid({
                 editable={editable}
                 fontPx={fontPx}
                 facts={facts[card.project.id]}
+                idleDaysVisible={idleDaysVisible}
                 isActive={card.project.id === activeProjectId}
                 onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
                 onLongPressStart={undefined}
@@ -236,6 +267,7 @@ export function ProjectGrid({
                         editable={false}
                         fontPx={fontPx}
                         facts={facts[card.project.id]}
+                        idleDaysVisible={idleDaysVisible}
                         isActive={card.project.id === activeProjectId}
                         onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
                         onLongPressStart={() => {
@@ -294,6 +326,7 @@ function ProjectCardTile({
   editable,
   fontPx,
   facts,
+  idleDaysVisible,
   isActive,
   onRequestDelete,
   onLongPressStart,
@@ -304,11 +337,13 @@ function ProjectCardTile({
   editable: boolean;
   fontPx: number;
   facts?: ProjectBoardFacts;
+  idleDaysVisible: boolean;
   isActive: boolean;
   onRequestDelete: () => void;
   onLongPressStart?: () => void;
   onLongPressEnd: () => void;
 }) {
+  const { t } = useTranslation();
   const { style, ...rootProps } = card.rootProps;
   return (
     <motion.article
@@ -355,6 +390,15 @@ function ProjectCardTile({
         <p className="min-h-0 flex-1 overflow-hidden text-[12px] leading-snug text-text-muted">
           {facts.excerpt}
         </p>
+      )}
+
+      {/* Deliberately uncoloured: red on this screen means "no next action". */}
+      {idleDaysVisible && !!facts && (
+        <span className="shrink-0 text-[11px] text-text-muted tabular-nums">
+          {facts.idleDays > 0
+            ? `${facts.idleDays} ${t('projects.idleDaysShort')}`
+            : t('projects.idleDaysToday')}
+        </span>
       )}
 
       {desktop && editable && (
