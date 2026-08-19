@@ -39,6 +39,8 @@ interface ProjectGridProps {
   activeProjectId?: string | null;
   editable?: boolean;
   fontPx: number;
+  /** Size of the note excerpt on a card — the same figure the note itself is set in. */
+  notePx: number;
   actions: ProjectGridActions;
 }
 
@@ -84,6 +86,7 @@ export function ProjectGrid({
   activeProjectId = null,
   editable = false,
   fontPx,
+  notePx,
   actions,
 }: ProjectGridProps) {
   const { t } = useTranslation();
@@ -223,6 +226,7 @@ export function ProjectGrid({
                 desktop
                 editable={editable}
                 fontPx={fontPx}
+                notePx={notePx}
                 facts={facts[card.project.id]}
                 idleSignalsVisible={idleSignalsVisible}
                 isActive={card.project.id === activeProjectId}
@@ -266,6 +270,7 @@ export function ProjectGrid({
                         desktop={false}
                         editable={false}
                         fontPx={fontPx}
+                        notePx={notePx}
                         facts={facts[card.project.id]}
                         idleSignalsVisible={idleSignalsVisible}
                         isActive={card.project.id === activeProjectId}
@@ -325,6 +330,7 @@ function ProjectCardTile({
   desktop,
   editable,
   fontPx,
+  notePx,
   facts,
   idleSignalsVisible,
   isActive,
@@ -336,6 +342,7 @@ function ProjectCardTile({
   desktop: boolean;
   editable: boolean;
   fontPx: number;
+  notePx: number;
   facts?: ProjectBoardFacts;
   idleSignalsVisible: boolean;
   isActive: boolean;
@@ -387,7 +394,7 @@ function ProjectCardTile({
       {/* No clamp: the card's own height is what decides how much of the note is readable,
           which is the whole reason a card can be resized. */}
       {!!facts?.excerpt && (
-        <p className="min-h-0 flex-1 overflow-hidden text-[12px] leading-snug text-text-muted">
+        <p className="min-h-0 flex-1 overflow-hidden leading-snug text-text-muted" style={{ fontSize: `${notePx}px` }}>
           {facts.excerpt}
         </p>
       )}

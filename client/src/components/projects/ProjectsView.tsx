@@ -36,7 +36,7 @@ export function ProjectsView() {
   const { projects, createProject, updateProject, deleteProject, moveProjects } = useProjects();
   const { activities } = useActivities();
   const timeTrackingVisible = useSettingsStore((s) => s.timeTrackingVisible);
-  const { projectListFontPx } = useProjectTypography();
+  const { projectListFontPx, projectNoteFontPx } = useProjectTypography();
   const { folders, createFolder } = useFolders();
   const inboxCount = useLiveQuery(
     () => db.inboxItems.filter((i) => !i.deletedAt).count(),
@@ -691,6 +691,7 @@ export function ProjectsView() {
             idleSignalsVisible={idleSignalsVisible}
             onToggleIdleSignals={toggleIdleSignals}
             fontPx={projectListFontPx}
+            notePx={projectNoteFontPx}
             layout={projectGridLayout}
             onLayoutChange={(next) => updateSettings({ projectGridLayout: next })}
             actions={{
