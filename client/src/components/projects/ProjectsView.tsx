@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useProjects } from '../../hooks/useProjects';
+import { useProjectsBoard } from '../../hooks/useProjectsBoard';
 import { useActivities } from '../../hooks/useActivities';
 import { useFolders } from '../../hooks/useFolders';
 import { useProjectTasks } from '../../hooks/useProjectTasks';
@@ -43,18 +44,9 @@ export function ProjectsView() {
     () => db.inboxItems.filter((i) => !i.deletedAt).count(),
     [],
   );
-  // Open-task count per project for the card badge. Completed (and therefore
-  // archived) tasks are excluded — the badge answers "how much is left here".
-  const taskCounts = useLiveQuery(
-    () => db.projectTasks.filter(t => !t.deletedAt && !t.isCompleted).toArray().then(tasks => {
-      const counts: Record<string, number> = {};
-      for (const task of tasks) {
-        counts[task.projectId] = (counts[task.projectId] ?? 0) + 1;
-      }
-      return counts;
-    }),
-    [],
-  );
+  // Open counts, note excerpts and idle days for every project in one fold — the board's
+  // cards, the tree rows and the days toggle all read the same figures.
+  const boardFacts = useProjectsBoard(projects);
   const activeTabId = useProjectUIStore((s) => s.activeTabId);
   // Tasks dragged out of the task panel into the description are soft-deleted
   // through the same cascade every other deletion uses — useProjectTasks owns
@@ -383,7 +375,7 @@ export function ProjectsView() {
               editable
               projects={projects}
               folders={folders}
-              taskCounts={taskCounts ?? {}}
+              facts={boardFacts}
               fontPx={projectListFontPx}
               layout={projectGridLayout}
               onLayoutChange={(next) => updateSettings({ projectGridLayout: next })}
@@ -749,7 +741,7 @@ export function ProjectsView() {
             editable={false}
             projects={projects}
             folders={folders}
-            taskCounts={taskCounts ?? {}}
+            facts={boardFacts}
             fontPx={projectListFontPx}
             layout={projectGridLayout}
             onLayoutChange={(next) => updateSettings({ projectGridLayout: next })}

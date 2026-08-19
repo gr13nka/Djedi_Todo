@@ -5,6 +5,7 @@ import { useTranslation } from '../../i18n/useTranslation';
 import { NEU } from '../../utils/shadows';
 import { useProjectCardLayout } from './useProjectCardLayout';
 import type { ProjectFolderMove, ProjectGridCardModel } from './useProjectCardLayout';
+import type { ProjectBoardFacts } from '../../hooks/useProjectsBoard';
 import { PROJECT_CARD_ROW_PX } from './projectCardLayout';
 
 /** Room kept under the lowest card so a card can always be dragged further down. */
@@ -22,8 +23,8 @@ interface ProjectGridActions {
 interface ProjectGridProps {
   projects: Project[];
   folders: ProjectFolder[];
-  /** Open (incomplete) task count per project id; the card badge hides at 0. */
-  taskCounts?: Record<string, number>;
+  /** What each card says beyond its name, keyed by project id. */
+  facts?: Record<string, ProjectBoardFacts>;
   layout: ProjectGridLayout;
   onLayoutChange: (next: ProjectGridLayout) => void | Promise<void>;
   viewport: 'mobile' | 'desktop';
@@ -56,7 +57,7 @@ function FolderPlusIcon() {
 export function ProjectGrid({
   projects,
   folders,
-  taskCounts = {},
+  facts = {},
   layout,
   onLayoutChange,
   viewport,
@@ -194,7 +195,7 @@ export function ProjectGrid({
                 desktop
                 editable={editable}
                 fontPx={fontPx}
-                openCount={taskCounts[card.project.id] ?? 0}
+                facts={facts[card.project.id]}
                 isActive={card.project.id === activeProjectId}
                 onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
                 onLongPressStart={undefined}
@@ -234,7 +235,7 @@ export function ProjectGrid({
                     desktop={false}
                     editable={false}
                     fontPx={fontPx}
-                    openCount={taskCounts[card.project.id] ?? 0}
+                    facts={facts[card.project.id]}
                     isActive={card.project.id === activeProjectId}
                     onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
                     onLongPressStart={() => {
@@ -267,7 +268,7 @@ function ProjectCardTile({
   desktop,
   editable,
   fontPx,
-  openCount,
+  facts,
   isActive,
   onRequestDelete,
   onLongPressStart,
@@ -277,7 +278,7 @@ function ProjectCardTile({
   desktop: boolean;
   editable: boolean;
   fontPx: number;
-  openCount: number;
+  facts?: ProjectBoardFacts;
   isActive: boolean;
   onRequestDelete: () => void;
   onLongPressStart?: () => void;
@@ -316,11 +317,19 @@ function ProjectCardTile({
         <span className="font-medium text-text-primary truncate" style={{ fontSize: `${fontPx}px` }}>
           {card.project.name}
         </span>
+        {!!facts?.openCount && (
+          <span className="ml-auto shrink-0 text-[11px] text-text-muted tabular-nums">
+            {facts.openCount}
+          </span>
+        )}
       </div>
-      {openCount > 0 && (
-        <span className="text-[11px] text-text-muted tabular-nums">
-          {openCount}
-        </span>
+
+      {/* No clamp: the card's own height is what decides how much of the note is readable,
+          which is the whole reason a card can be resized. */}
+      {!!facts?.excerpt && (
+        <p className="min-h-0 flex-1 overflow-hidden text-[12px] leading-snug text-text-muted">
+          {facts.excerpt}
+        </p>
       )}
 
       {desktop && editable && (
