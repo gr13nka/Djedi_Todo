@@ -79,6 +79,7 @@ const en = {
   // Projects
   'projects.title': 'Projects',
   'projects.board': 'Board',
+  'projects.noNextAction': 'No next action formulated',
   'projects.idleDays': 'Days without tasks',
   'projects.idleDaysShort': 'd without tasks',
   'projects.idleDaysToday': 'active today',
@@ -435,6 +436,7 @@ const ru: Record<TranslationKey, string> = {
   'analytics.emptyStreaks': 'Начните отслеживать, чтобы увидеть серии и средние.',
   'projects.title': 'Проекты',
   'projects.board': 'Доска',
+  'projects.noNextAction': 'Следующее действие не сформулировано',
   'projects.idleDays': 'Дни без задач',
   'projects.idleDaysShort': 'дн. без задач',
   'projects.idleDaysToday': 'активность сегодня',

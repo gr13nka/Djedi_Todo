@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFolders } from '../../hooks/useFolders';
 import { useProjects } from '../../hooks/useProjects';
+import { useProjectsBoard } from '../../hooks/useProjectsBoard';
 import { useProjectUIStore } from '../../stores/projectUIStore';
 import { useTranslation } from '../../i18n/useTranslation';
 import { NEU } from '../../utils/shadows';
@@ -24,6 +25,11 @@ export function FileTree() {
   const { t } = useTranslation();
   const { folders, createFolder, updateFolder, deleteFolder, toggleExpanded } = useFolders();
   const { projects, createProject, deleteProject, moveProject, updateProject } = useProjects();
+  const { facts: boardFacts } = useProjectsBoard(projects);
+  const openCounts = useMemo(
+    () => Object.fromEntries(Object.entries(boardFacts).map(([id, fact]) => [id, fact.openCount])),
+    [boardFacts],
+  );
   const { projectListFontPx } = useProjectTypography();
   const openTab = useProjectUIStore((s) => s.openTab);
   const closeTab = useProjectUIStore((s) => s.closeTab);
@@ -176,6 +182,7 @@ export function FileTree() {
             key={folder.id}
             folder={folder}
             projects={projectsByFolder(folder.id)}
+            openCounts={openCounts}
             fontPx={projectListFontPx}
             activeTabId={activeTabId}
             onToggle={() => toggleExpanded(folder.id)}
@@ -208,6 +215,7 @@ export function FileTree() {
             project={project}
             fontPx={projectListFontPx}
             isActive={project.id === activeTabId}
+            openCount={openCounts[project.id] ?? 0}
             onClick={() => openTab(project.id)}
             onContextMenu={(e) => handleContextMenu(e, project)}
             onPointerDown={startProjectDrag(project)}
@@ -265,6 +273,7 @@ export function FileTree() {
 function FolderRow({
   folder,
   projects,
+  openCounts,
   fontPx,
   activeTabId,
   onToggle,
@@ -281,6 +290,8 @@ function FolderRow({
 }: {
   folder: ProjectFolder;
   projects: Project[];
+  /** Incomplete task count per project id, for the rows this folder renders. */
+  openCounts: Record<string, number>;
   fontPx: number;
   activeTabId: string | null;
   onToggle: () => void;
@@ -384,6 +395,7 @@ function FolderRow({
                   project={project}
                   fontPx={fontPx}
                   isActive={project.id === activeTabId}
+                  openCount={openCounts[project.id] ?? 0}
                   onClick={() => onProjectClick(project.id)}
                   onContextMenu={(e) => onContextMenu(e, project)}
                   onPointerDown={onProjectPointerDown(project)}
@@ -401,6 +413,7 @@ function ProjectRow({
   project,
   fontPx,
   isActive,
+  openCount,
   onClick,
   onContextMenu,
   onPointerDown,
@@ -408,10 +421,15 @@ function ProjectRow({
   project: Project;
   fontPx: number;
   isActive: boolean;
+  /** Incomplete tasks left; 0 means no next action is formulated. */
+  openCount: number;
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onPointerDown?: (e: React.PointerEvent<HTMLElement>) => void;
 }) {
+  const { t } = useTranslation();
+  // An archived project is finished, not stalled — the marker would be an accusation.
+  const stalled = openCount === 0 && !project.isArchived;
   return (
     <button
       onClick={onClick}
@@ -430,6 +448,17 @@ function ProjectRow({
         />
       )}
       <span className="truncate" style={{ fontSize: `${fontPx}px` }}>{project.name}</span>
+      {stalled ? (
+        <span
+          className="ml-auto shrink-0 w-1.5 h-1.5 rounded-full bg-red"
+          title={t('projects.noNextAction')}
+          aria-label={t('projects.noNextAction')}
+        />
+      ) : (
+        <span className="ml-auto shrink-0 text-[10px] text-text-muted/60 tabular-nums">
+          {openCount}
+        </span>
+      )}
     </button>
   );
 }
