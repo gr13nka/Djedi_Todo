@@ -66,7 +66,7 @@ client/src/
 │   ├── inbox/                # InboxView
 │   ├── layout/               # AppShell, Sidebar, BottomNav, DesktopBottomNav, DropdownNav, navItems.tsx (shared nav registry: icons + ALL_NAV_ITEMS + NAV_ITEM_MAP)
 │   ├── progress/             # ProgressBar, CircularBar, SegmentedBar, ThickLinearBar
-│   ├── projects/             # ProjectsView, ProjectTabs, ProjectTaskList, TaskItem, FileTree, RecurrenceEditor, ProjectDraftEditor, ProjectGrid, ProjectSelector, useProjectCardLayout.ts (lives here, not hooks/), folder/project modals
+│   ├── projects/             # ProjectsView, ProjectTabs, ProjectTaskList, TaskItem, FileTree, RecurrenceEditor, ProjectDraftEditor, ProjectGrid (the board), ProjectSelector, projectCardLayout.ts + useProjectCardLayout.ts (live here, not hooks/), folder/project modals
 │   ├── settings/             # ThemeToggle, CustomThemeEditor, BarStylePicker, NavPositionPicker, BottomNavSettings, LanguagePicker, VaultSettings, + 6 more
 │   ├── taskSelection/        # TaskSelectionView (box tabs), TaskGroupCard, FolderGroupSection, SelectableTaskRow, StalenessCounter
 │   ├── timer/                # TimerDisplay, ManualEntry
@@ -79,7 +79,7 @@ client/src/
 │   ├── rollover.ts           # computeRollover — pure box-move rules, no I/O
 │   ├── migrations.ts         # classifyTimeBoxForMigration — v10 upgrade's one-shot classifier
 │   └── seed.ts
-├── hooks/                    # 20 hooks — see Key Patterns
+├── hooks/                    # 23 hooks — see Key Patterns
 ├── i18n/                     # translations.ts (en, ru only), useTranslation.ts
 ├── pages/                    # HomePage, ProjectsPage, TaskSelectionPage, TodayPage, InboxPage, SettingsPage — one per route
 ├── stores/                   # timerStore, settingsStore, projectUIStore (+ inline useSidebarStore in Sidebar.tsx)
@@ -113,6 +113,14 @@ There is no `server/` directory and no root `package.json` — this is a client-
   - `db/migrations.ts` — one-shot classification logic used only by the Dexie v10 upgrade.
 - **Settings — split rosters**: `UserSettings`/`DEFAULT_SETTINGS` are the shared behavior settings mirrored to `settings.json`; `DeviceSettings`/`DEFAULT_DEVICE_SETTINGS` hold vault paths, appearance, language, and navigation in a local Dexie row. `settingsStore.load()` combines both records for the UI and `update()` routes each field to its owning table. The theme migration remains local (`darkMode`, retired palettes, and retired languages), while side-effecting concerns retain their named actions.
 - **Theming — single data table**: `theme/themes.ts` defines each prebuilt theme's 12 color tokens once (`PREBUILT_THEMES`); `theme/applyTheme.ts` is the only code that writes them onto `<html>` as inline CSS custom properties. `useThemeColors.ts` (Recharts palette) and `ThemeToggle.tsx` (swatch UI) both read `PREBUILT_THEMES` instead of hardcoding colors.
+- **Projects board** (`components/projects/projectCardLayout.ts` + `useProjectCardLayout.ts` + `ProjectGrid.tsx`):
+  - A frame is `{x, y, w, h, z}` — `x`/`w` are **fractions of board width**, `y`/`h` are **pixels**. Fractions survive a window resize; a pixel height is what decides how much note excerpt a card shows. Stored in `DeviceSettings.projectGridLayout` (v2: `cards` + `folders`), device-local, never vault-synced.
+  - **v1 layouts** (`{col,row,colSpan,rowSpan}`) are migrated lazily-but-eagerly: the hook rewrites them as v2 at the first *measured desktop* render, because cells only convert against the column count they were written under and that count is not in the payload. `legacyGridColumnCount` exists solely for this.
+  - **No collision avoidance anywhere.** Cards and zones may overlap; whatever was touched last comes to the front of its layer (cards and zones have separate `z` counters, `CARD_LAYER_BASE` lifts cards clear of zones).
+  - **Folder membership is geometric**: the zone under a card's **top-left corner** owns it, topmost zone wins. Recomputed after every drop. Moving a zone carries the cards inside it; resizing does not.
+  - `reconcileProjectGridLayout` deliberately **never** moves a card to agree with its `folderId` — it cannot tell a stale position from a fresh drop, and a drop reaches the new zone a render before the `folderId` write returns. `useProjectCardLayout` does that correction instead, skipping cards whose folder write is still in flight. This is what makes the phone→desktop refile path work.
+  - **Narrow viewports** get a two-column greedy masonry (`layoutMasonryColumns`), ordered by the wide board's `y`. Positions are *not* editable there: the layout is device-local, so a drag could never reach the desktop.
+  - `hooks/useProjectsBoard.ts` owns the per-project figures — note excerpt (`stripMarkdown`), open count, and idle days. Idle days comes from task `createdAt`/`completedAt`, **never** `Project.updatedAt`, which is bumped by renames, bulk reorders and vault LWW row replacement.
 - **Time-boxing** (replaces the old date-scoped `todayTasks` table): every `ProjectTask` carries `timeBox` (`'today' | 'week' | 'later'`), an optional `scheduledDate` pin, and a cross-project `timeBoxOrder`. `hooks/useTaskBox.ts` is the live-query + move/reorder/toggle surface for one box; `/today` (`TodayPage`) is `useTaskBox('today')`, and `/tasks` (`TaskSelectionView`) has box tabs (`today`/`week`/`later`/`all`, defaulting to **week**). `hooks/useTaskRollover.ts` runs `db/rollover.ts`'s `computeRollover()` on mount and on tab-visibility-regain: it demotes everything left in `'today'` (incomplete → `week`, completed → `later`) and promotes any task whose `scheduledDate` is due, all inside one Dexie transaction that also stamps `settings.lastRolloverDate` (the idempotency guard).
 - **Routing**: React Router 7, 6 routes, `AnimatePresence` page transitions (y-slide + fade, 200ms).
 - **Navigation**: three modes via `navPosition` (`'left'` sidebar / `'bottom'` desktop bar / `'dropdown'` FAB+menu). Nav item data (icons, routes, labels) lives once in `components/layout/navItems.tsx` (`ALL_NAV_ITEMS` + `NAV_ITEM_MAP`); tab visibility/order/reorder/context-menu logic lives in `hooks/useNavTabs.ts`; the four components (`Sidebar.tsx`, `BottomNav.tsx`, `DesktopBottomNav.tsx`, `DropdownNav.tsx`) and `BottomNavSettings.tsx` only render. Adding or changing a nav item = `navItems.tsx` + translations. `BottomNav` additionally filters by its own `bottomNavTabs`/`bottomNavPages` settings, and has two layouts (classic 4-tabs-+-More vs. a scrollable paged variant), switched by the `bottomNavScrollable` setting.
@@ -125,7 +133,7 @@ There is no `server/` directory and no root `package.json` — this is a client-
 | Path | Page Component | Notes |
 |------|---------------|-------|
 | `/` | `HomePage` | Timer + activity list |
-| `/projects` | `ProjectsPage` | Wide + full-bleed. Tabbed project editor with folders |
+| `/projects` | `ProjectsPage` | Wide + full-bleed. Opens on the **board**; a card opens that project's editor |
 | `/tasks` | `TaskSelectionPage` | Wide. All tasks by project/folder; box tabs (today/week/later/all), default **week** |
 | `/today` | `TodayPage` | The `'today'` time-box; focus mode overlay |
 | `/inbox` | `InboxPage` | Quick-capture inbox |
@@ -198,6 +206,7 @@ Unchanged in spirit: `CustomThemeEditor.tsx` shows 12 color pickers, stored in `
 
 - **Activity Time Tracking**: core timer (`HomePage`), manual entry, daily budgets.
 - **Projects & Tasks**: folder hierarchy, tabbed project editor (`ProjectsView`/`ProjectTabs`), recurrence (daily/weekly/monthly), drag-reorder, `maxTasksPerProject` limit.
+- **Projects board** (`/projects` landing view): free-placed, freely-sized, overlapping project cards showing a note excerpt, laid out on one canvas with folder zones behind them. Nothing is auto-opened — the board is what the route shows until a card is clicked.
 - **Time-boxing**: today/week/later boxes on every task (`ProjectTask.timeBox`), manual promote/demote, optional `scheduledDate` pin, automatic daily rollover. Replaces the old date-scoped Today List.
 - **Task archive**: completed → `archivedAt` stamped after `archiveCompletedAfterDays` logical days (0 = at completion; `autoArchiveCompleted`, default on/1 day) → soft-deleted `deleteArchivedAfterDays` days after archival (`autoDeleteArchived`, default off). The sweep runs in the daily rollover; recurring tasks are never auto-deleted. Archived tasks live in a collapsed Archive section of the project task list with restore (clears `archivedAt`) and delete.
 - **Inbox**: quick-capture, sort into projects, soft-delete with an explicit undelete ("Undo") path.

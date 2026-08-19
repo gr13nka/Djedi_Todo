@@ -12,12 +12,12 @@ export const DEFAULT_CARD_WIDTH_PX = 240;
 export const DEFAULT_CARD_HEIGHT_PX = 2 * PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
 
 /** Breathing room inside a folder zone, and the strip its label occupies. */
-export const ZONE_PADDING_PX = 12;
+const ZONE_PADDING_PX = 12;
 export const ZONE_LABEL_PX = 28;
 
 /** Size a zone gets when a folder turns out not to have one — room for four default cards. */
-export const DEFAULT_ZONE_WIDTH_PX = 2 * DEFAULT_CARD_WIDTH_PX + 3 * ZONE_PADDING_PX;
-export const DEFAULT_ZONE_HEIGHT_PX = ZONE_LABEL_PX + 2 * (DEFAULT_CARD_HEIGHT_PX + ZONE_PADDING_PX);
+const DEFAULT_ZONE_WIDTH_PX = 2 * DEFAULT_CARD_WIDTH_PX + 3 * ZONE_PADDING_PX;
+const DEFAULT_ZONE_HEIGHT_PX = ZONE_LABEL_PX + 2 * (DEFAULT_CARD_HEIGHT_PX + ZONE_PADDING_PX);
 
 /**
  * Cards always render above zones, so the two keep separate stacking counters and the card
