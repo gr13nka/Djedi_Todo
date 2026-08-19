@@ -25,8 +25,6 @@ import { useProjectTypography } from '../settings/projectTypography';
 
 const MIN_TREE_SIDEBAR = 160;
 const MAX_TREE_SIDEBAR = 400;
-const MIN_GRID_SIDEBAR = 280;
-const MAX_GRID_SIDEBAR = 640;
 const MIN_TASK_PANEL = 200;
 const MAX_TASK_PANEL = 500;
 const MIN_TASK_PANEL_HEIGHT = 80;
@@ -62,7 +60,6 @@ export function ProjectsView() {
   const splitDirection = useProjectUIStore((s) => s.splitDirection);
   const setSplitDirection = useProjectUIStore((s) => s.setSplitDirection);
   const navPosition = useSettingsStore((s) => s.navPosition);
-  const projectGridEnabled = useSettingsStore((s) => s.projectGridEnabled);
   const projectGridLayout = useSettingsStore((s) => s.projectGridLayout);
   const updateSettings = useSettingsStore((s) => s.update);
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
@@ -81,20 +78,13 @@ export function ProjectsView() {
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
   const didDragRef = useRef(false);
 
-  // Auto-open first project when no tab is active. Mobile grid mode remains a
-  // picker; desktop grid mode is just an alternate sidebar, so the editor stays open.
-  useEffect(() => {
-    if (!isDesktop && projectGridEnabled) return;
-    if (activeTabId || projects.length === 0) return;
-    openTab(projects[0].id);
-  }, [projects, activeTabId, openTab, isDesktop, projectGridEnabled]);
+  // Nothing is auto-opened: with no tab active the board is what /projects shows, and
+  // opening a project on arrival would skip straight past it.
 
   // Resizable sidebar width
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const sidebarMin = projectGridEnabled ? MIN_GRID_SIDEBAR : MIN_TREE_SIDEBAR;
-  const sidebarMax = projectGridEnabled ? MAX_GRID_SIDEBAR : MAX_TREE_SIDEBAR;
-  const effectiveSidebarWidth = Math.min(sidebarMax, Math.max(sidebarMin, sidebarWidth));
+  const effectiveSidebarWidth = Math.min(MAX_TREE_SIDEBAR, Math.max(MIN_TREE_SIDEBAR, sidebarWidth));
 
   // Resizable task panel width (vertical split)
   const [taskPanelWidth, setTaskPanelWidth] = useState(288);
@@ -142,9 +132,9 @@ export function ProjectsView() {
   const handleSidebarPointerMove = useCallback((e: React.PointerEvent) => {
     const drag = sidebarDragRef.current;
     if (!drag) return;
-    const newWidth = Math.min(sidebarMax, Math.max(sidebarMin, drag.startWidth + (e.clientX - drag.startX)));
+    const newWidth = Math.min(MAX_TREE_SIDEBAR, Math.max(MIN_TREE_SIDEBAR, drag.startWidth + (e.clientX - drag.startX)));
     setSidebarWidth(newWidth);
-  }, [sidebarMax, sidebarMin]);
+  }, []);
 
   const handleSidebarPointerEnd = useCallback(() => {
     if (!sidebarDragRef.current) return;
@@ -363,40 +353,26 @@ export function ProjectsView() {
           style={{ width: effectiveSidebarWidth }}
         >
           <div className="px-3 pt-3 pb-1">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-text-muted/70">
-              {t('projects.title')}
-            </h2>
+            {activeProject ? (
+              /* The board is what /projects opens with, so a project screen has to say how to
+                 get back to it — otherwise closing every tab is the only route. */
+              <button
+                type="button"
+                onClick={clearActiveTab}
+                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-text-muted/70 hover:text-accent transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                {t('projects.board')}
+              </button>
+            ) : (
+              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-text-muted/70">
+                {t('projects.title')}
+              </h2>
+            )}
           </div>
-          {projectGridEnabled ? (
-            <ProjectGrid
-              viewport="desktop"
-              variant="desktop-sidebar"
-              activeProjectId={activeTabId}
-              editable
-              projects={projects}
-              folders={folders}
-              facts={boardFacts}
-              fontPx={projectListFontPx}
-              layout={projectGridLayout}
-              onLayoutChange={(next) => updateSettings({ projectGridLayout: next })}
-              actions={{
-                openProject: openTab,
-                requestAddProject: (folderId) => {
-                  setAddProjectFolderId(folderId);
-                  setShowAddProject(true);
-                },
-                requestAddFolder: () => setShowAddFolder(true),
-                requestDeleteProject: (projectId) => {
-                  const project = projects.find((p) => p.id === projectId);
-                  if (project) setGridDeleteProject(project);
-                },
-                moveProjectsToFolders: (moves) =>
-                  moveProjects(moves.map((move) => ({ id: move.projectId, folderId: move.folderId }))),
-              }}
-            />
-          ) : (
-            <FileTree />
-          )}
+          <FileTree />
           {/* Resize handle */}
           <div
             onPointerDown={handleSidebarPointerDown}
@@ -436,7 +412,7 @@ export function ProjectsView() {
           className="flex md:hidden items-center gap-2 border-b border-border px-2 py-1.5 shrink-0 bg-bg-primary select-none"
           style={{ paddingTop: 'calc(0.375rem + env(safe-area-inset-top, 0px))' }}
         >
-          {projectGridEnabled && activeProject ? (
+          {activeProject ? (
             /* Grid mode: editor bar — back + name + hamburger */
             <>
               <button
@@ -460,7 +436,7 @@ export function ProjectsView() {
                 {mobileTreeOpen ? '✕' : '☰'}
               </button>
             </>
-          ) : projectGridEnabled && !activeProject ? (
+          ) : (
             /* Grid mode: grid title bar */
             <>
               <span className="flex-1 text-sm text-text-primary font-medium">{t('projects.title')}</span>
@@ -489,45 +465,6 @@ export function ProjectsView() {
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
-                {(inboxCount ?? 0) > 0 && (
-                  <button
-                    onClick={() => navigate('/inbox?mode=sort')}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-text-muted hover:text-accent transition-colors"
-                    title={t('projects.sortInbox')}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </>
-          ) : (
-            /* Sidemenu mode (default): hamburger + select dropdown */
-            <>
-              <button
-                onClick={() => setMobileTreeOpen(!mobileTreeOpen)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-text-muted shrink-0"
-                style={{ boxShadow: NEU.raisedSm }}
-              >
-                {mobileTreeOpen ? '✕' : '☰'}
-              </button>
-              {openProjects.length > 0 ? (
-                <select
-                  value={activeTabId ?? ''}
-                  onChange={(e) => setActiveTab(e.target.value)}
-                  className="flex-1 min-w-0 bg-bg-primary text-text-primary rounded-lg px-2 py-1 border border-border appearance-none truncate"
-                  style={{ boxShadow: NEU.pressedSm, fontSize: `${projectListFontPx}px` }}
-                >
-                  {openProjects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.icon ? `${p.icon} ${p.name}` : p.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <span className="flex-1 text-sm text-text-muted truncate">{t('projects.title')}</span>
-              )}
-              <div className="flex items-center gap-1 shrink-0">
                 {(inboxCount ?? 0) > 0 && (
                   <button
                     onClick={() => navigate('/inbox?mode=sort')}
@@ -733,12 +670,12 @@ export function ProjectsView() {
               </div>
             </motion.div>
           )
-        ) : !isDesktop && projectGridEnabled ? (
+        ) : (
+          /* No project open: the board fills the content area. It is the landing view. */
           <ProjectGrid
-            viewport="mobile"
-            variant="mobile-picker"
+            viewport={isDesktop ? 'desktop' : 'mobile'}
             activeProjectId={activeTabId}
-            editable={false}
+            editable={isDesktop}
             projects={projects}
             folders={folders}
             facts={boardFacts}
@@ -760,10 +697,6 @@ export function ProjectsView() {
                 moveProjects(moves.map((move) => ({ id: move.projectId, folderId: move.folderId }))),
             }}
           />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
-            {t('projects.empty')}
-          </div>
         )}
       </div>
 

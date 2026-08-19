@@ -78,6 +78,7 @@ const en = {
 
   // Projects
   'projects.title': 'Projects',
+  'projects.board': 'Board',
   'projects.delete': 'Delete project',
   'projects.deleteConfirm': 'Delete this project and all its tasks?',
   'projects.moveToRoot': 'Move to root',
@@ -306,8 +307,6 @@ const en = {
 
   // Project cards
   'settings.mobileProjects': 'PROJECT CARDS',
-  'settings.mobileProjectGrid': 'Card grid',
-  'settings.mobileProjectGridDesc': 'Show projects as cards; desktop cards can be moved and resized',
 
   // Vault
   'settings.vault': 'Vault Sync',
@@ -432,6 +431,7 @@ const ru: Record<TranslationKey, string> = {
   'analytics.mDay': 'м/день',
   'analytics.emptyStreaks': 'Начните отслеживать, чтобы увидеть серии и средние.',
   'projects.title': 'Проекты',
+  'projects.board': 'Доска',
   'projects.delete': 'Удалить проект',
   'projects.deleteConfirm': 'Удалить проект и все задачи?',
   'projects.moveToRoot': 'Переместить в корень',
@@ -634,8 +634,6 @@ const ru: Record<TranslationKey, string> = {
   'projects.exitFocusHint': 'Esc — выйти',
   'projects.dragLine': 'Потяните, чтобы переместить строку или сделать её задачей',
   'settings.mobileProjects': 'КАРТОЧКИ ПРОЕКТОВ',
-  'settings.mobileProjectGrid': 'Сетка карточек',
-  'settings.mobileProjectGridDesc': 'Показывать проекты карточками; на компьютере карточки можно перемещать и менять по размеру',
   'settings.vault': 'Синхронизация файлов',
   'vault.description': 'Экспорт и импорт данных в виде читаемых Markdown файлов. Используйте с Syncthing для синхронизации между устройствами.',
   'vault.exportZip': 'Экспорт в ZIP',

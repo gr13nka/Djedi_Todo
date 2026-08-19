@@ -317,15 +317,13 @@ db.version(15).stores({
   const raw = await tx.table('deviceSettings').get('default') as Record<string, unknown> | undefined;
   if (!raw) return;
 
+  // Both retired flags picked between a board and a list; there is only the board now.
   const next = { ...raw };
-  const legacyGridEnabled = typeof raw.mobileProjectGrid === 'boolean' ? raw.mobileProjectGrid : undefined;
   delete next.mobileProjectGrid;
+  delete next.projectGridEnabled;
 
   await tx.table('deviceSettings').put({
     ...next,
-    projectGridEnabled: typeof raw.projectGridEnabled === 'boolean'
-      ? raw.projectGridEnabled
-      : (legacyGridEnabled ?? DEFAULT_DEVICE_SETTINGS.projectGridEnabled),
     projectGridLayout: raw.projectGridLayout ?? DEFAULT_DEVICE_SETTINGS.projectGridLayout,
   });
 });

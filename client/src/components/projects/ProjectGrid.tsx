@@ -34,7 +34,6 @@ interface ProjectGridProps {
   layout: ProjectGridLayout;
   onLayoutChange: (next: ProjectGridLayout) => void | Promise<void>;
   viewport: 'mobile' | 'desktop';
-  variant?: 'mobile-picker' | 'desktop-sidebar';
   activeProjectId?: string | null;
   editable?: boolean;
   fontPx: number;
@@ -67,7 +66,6 @@ export function ProjectGrid({
   layout,
   onLayoutChange,
   viewport,
-  variant = viewport === 'desktop' ? 'desktop-sidebar' : 'mobile-picker',
   activeProjectId = null,
   editable = false,
   fontPx,
@@ -95,17 +93,13 @@ export function ProjectGrid({
 
   const showUnfiledTitle = grid.sections.length > 1;
 
-  const isSidebar = variant === 'desktop-sidebar';
-
   return (
-    <div className={`flex-1 min-h-0 overflow-y-auto ${isSidebar ? 'p-2' : 'p-3 md:p-4'}`}>
+    <div className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4">
       {isDesktop && (
-        <div className={`mb-3 flex items-center ${isSidebar ? 'justify-end' : 'justify-between'} gap-2`}>
-          {!isSidebar && (
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted/70">
-              {t('projects.title')}
-            </span>
-          )}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted/70">
+            {t('projects.title')}
+          </span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"

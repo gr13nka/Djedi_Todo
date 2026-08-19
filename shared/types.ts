@@ -113,7 +113,6 @@ export interface DeviceSettings {
   bottomNavTabs: string[];
   bottomNavScrollable: boolean;
   bottomNavPages: string[][];
-  projectGridEnabled: boolean;
   projectGridLayout: ProjectGridLayout;
   taskSelectionDesktopSwipeEnabled: boolean;
 }

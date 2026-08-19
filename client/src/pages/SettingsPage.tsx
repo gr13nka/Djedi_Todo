@@ -14,7 +14,6 @@ import { FontPicker } from '../components/settings/FontPicker';
 import { ProjectTypographySettings } from '../components/settings/ProjectTypographySettings';
 import { TimeTrackingSettings } from '../components/settings/TimeTrackingSettings';
 import { VaultSettings } from '../components/settings/VaultSettings';
-import { MobileProjectSettings } from '../components/settings/MobileProjectSettings';
 import { Card } from '../components/ui/Card';
 import { NEU } from '../utils/shadows';
 import { useTranslation } from '../i18n/useTranslation';
@@ -60,7 +59,6 @@ function NavigationSection() {
       <Divider />
       <BottomNavSettings />
       <Divider />
-      <MobileProjectSettings />
     </>
   );
 }

@@ -93,7 +93,6 @@ export const DEFAULT_DEVICE_SETTINGS = {
     ['/', '/today', '/projects', '/inbox'],
     ['/tasks', '/settings'],
   ] as string[][],
-  projectGridEnabled: false,
   projectGridLayout: {
     version: 2,
     cards: {},
