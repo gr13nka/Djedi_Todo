@@ -27,8 +27,13 @@ export function applyTheme(theme: ThemeMode, customColors: CustomThemeColors): v
 
   if (theme === 'custom') {
     cl.add('custom');
+    // `dark` is the marker index.css keys the dark elevation scale off, so a custom theme
+    // built on a dark background has to carry it too — otherwise every surface in it stays
+    // flat. Same test that already decided `color-scheme`, asked once.
+    const isDark = contrastingText(customColors.bgPrimary) === '#FFFFFF';
+    if (isDark) cl.add('dark');
     setColorVars(customColors);
-    root.style.colorScheme = contrastingText(customColors.bgPrimary) === '#FFFFFF' ? 'dark' : 'light';
+    root.style.colorScheme = isDark ? 'dark' : 'light';
     setBrowserThemeColor(customColors.bgPrimary);
   } else if (isPrebuiltThemeId(theme)) {
     const preset = getPrebuiltTheme(theme);
