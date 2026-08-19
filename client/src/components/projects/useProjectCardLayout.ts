@@ -205,6 +205,11 @@ export function useProjectCardLayout({
    */
   useEffect(() => {
     if (viewport !== 'desktop' || boardWidth <= 0) return;
+    // A drag in progress is not an external change. Halfway through one the card is already
+    // over its new zone while `folderId` still names the old one, and "correcting" that
+    // disagreement drags the card back to where it started — on every pointer move, so it
+    // never arrives. This is what made dropping a card into a zone impossible.
+    if (activeRef.current) return;
 
     const pending = pendingFolderRef.current;
     const corrections: Record<string, ProjectCardFrame> = {};
@@ -248,7 +253,9 @@ export function useProjectCardLayout({
     const next = applyFramesToLayout(draftRef.current, { cards: corrections }, boardWidth);
     commitLayout(next);
     void onChange(next);
-  }, [arrangedLayout, boardWidth, commitLayout, folderIdForFrame, onChange, projects, viewport]);
+    // `activeId` is in the deps so the pass re-runs the moment a drag ends, when a genuine
+    // external change may be waiting to be applied.
+  }, [activeId, arrangedLayout, boardWidth, commitLayout, folderIdForFrame, onChange, projects, viewport]);
 
   /** Width the frame's fractions are measured against. */
   const getBoardWidth = useCallback(() => {
