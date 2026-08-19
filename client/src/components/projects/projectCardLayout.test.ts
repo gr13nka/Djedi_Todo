@@ -1,20 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { Project, ProjectFolder, ProjectGridLayout } from '@shared/types';
 import {
+  DEFAULT_CARD_HEIGHT_PX,
+  MIN_CARD_HEIGHT_PX,
+  MIN_CARD_WIDTH_PX,
   PROJECT_CARD_GAP_PX,
   PROJECT_CARD_ROW_PX,
-  getProjectGridColumnCount,
+  appendProjectCardFrame,
+  framesBottom,
   groupProjectsForGrid,
   isLegacyProjectGridLayout,
+  legacyGridColumnCount,
   normalizeProjectGridLayout,
-  placeProjectCardFrame,
   projectCardFrameFromGridCell,
-  projectCardFrameToGridCell,
   reconcileProjectGridLayout,
   sanitizeProjectCardFrame,
+  topStackingOrder,
 } from './projectCardLayout';
 
 const ROW_STEP = PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
+/** A board this wide read v1 cells as three columns, which several cases below rely on. */
+const BOARD = 960;
 
 const makeProject = (id: string, sortOrder: number, folderId: string | null = null): Project => ({
   id,
@@ -46,11 +52,10 @@ const makeFolder = (id: string, sortOrder: number): ProjectFolder => ({
 });
 
 describe('project card layout', () => {
-  it('uses two columns on mobile and scales desktop columns by width', () => {
-    expect(getProjectGridColumnCount(360, 'mobile')).toBe(2);
-    expect(getProjectGridColumnCount(700, 'desktop')).toBe(2);
-    expect(getProjectGridColumnCount(900, 'desktop')).toBe(3);
-    expect(getProjectGridColumnCount(1200, 'desktop')).toBe(4);
+  it('reads v1 cells against the column count that board width implied', () => {
+    expect(legacyGridColumnCount(700)).toBe(2);
+    expect(legacyGridColumnCount(900)).toBe(3);
+    expect(legacyGridColumnCount(1200)).toBe(4);
   });
 
   it('groups active projects by folder with unfiled projects last', () => {
@@ -68,24 +73,20 @@ describe('project card layout', () => {
   });
 
   it('clamps a saved frame into the board it is read against', () => {
-    expect(sanitizeProjectCardFrame({ x: 3, y: -4, w: 9, h: 4, z: -2 }, 3)).toEqual({
+    expect(sanitizeProjectCardFrame({ x: 3, y: -4, w: 9, h: 4, z: -2 }, BOARD)).toEqual({
       x: 0,
       y: 0,
       w: 1,
-      h: PROJECT_CARD_ROW_PX,
+      h: MIN_CARD_HEIGHT_PX,
       z: 0,
     });
   });
 
-  it('round-trips a frame through the cell grid it snaps to', () => {
-    const cell = { col: 1, row: 2, colSpan: 2, rowSpan: 3 };
-    const frame = projectCardFrameFromGridCell(cell, 4, 0);
+  it('keeps a card from shrinking below the pixel minimum', () => {
+    const frame = sanitizeProjectCardFrame({ x: 0.5, y: 10, w: 0.001, h: 1, z: 0 }, BOARD);
 
-    expect(frame.x).toBeCloseTo(0.25);
-    expect(frame.w).toBeCloseTo(0.5);
-    expect(frame.y).toBe(2 * ROW_STEP);
-    expect(frame.h).toBe(3 * PROJECT_CARD_ROW_PX + 2 * PROJECT_CARD_GAP_PX);
-    expect(projectCardFrameToGridCell(frame, 4)).toEqual(cell);
+    expect(frame.w * BOARD).toBeCloseTo(MIN_CARD_WIDTH_PX);
+    expect(frame.h).toBe(MIN_CARD_HEIGHT_PX);
   });
 
   it('migrates a v1 cell layout into fractions of the columns it was saved under', () => {
@@ -99,18 +100,17 @@ describe('project card layout', () => {
 
     expect(isLegacyProjectGridLayout(legacy)).toBe(true);
 
-    const migrated = normalizeProjectGridLayout(legacy, 3);
+    const migrated = normalizeProjectGridLayout(legacy, BOARD);
 
     expect(migrated.version).toBe(2);
     expect(migrated.folders).toEqual({});
     expect(migrated.cards.a.x).toBeCloseTo(0);
     expect(migrated.cards.a.w).toBeCloseTo(2 / 3);
+    expect(migrated.cards.a.h).toBe(PROJECT_CARD_ROW_PX);
     expect(migrated.cards.b.x).toBeCloseTo(2 / 3);
+    expect(migrated.cards.b.w).toBeCloseTo(1 / 3);
     expect(migrated.cards.b.y).toBe(ROW_STEP);
     expect(migrated.cards.b.h).toBe(2 * PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX);
-    // The picture is unchanged: every migrated frame snaps back onto the cell it came from.
-    expect(projectCardFrameToGridCell(migrated.cards.a, 3)).toEqual({ col: 0, row: 0, colSpan: 2, rowSpan: 1 });
-    expect(projectCardFrameToGridCell(migrated.cards.b, 3)).toEqual({ col: 2, row: 1, colSpan: 1, rowSpan: 2 });
   });
 
   it('does not treat an empty or already-migrated layout as legacy', () => {
@@ -126,48 +126,79 @@ describe('project card layout', () => {
       folders: { f: { x: 0.25, y: 12, w: 0.5, h: 200, z: 0 } },
     };
 
-    const next = normalizeProjectGridLayout(layout, 4);
+    const next = normalizeProjectGridLayout(layout, BOARD);
 
     expect(next.cards.a).toEqual({ x: 0, y: 0, w: 0.5, h: 100, z: 1 });
     expect(next.folders.f).toEqual({ x: 0.25, y: 12, w: 0.5, h: 200, z: 0 });
   });
 
-  it('places a moved frame into the next open cell when it would collide', () => {
-    const occupied = projectCardFrameFromGridCell({ col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 2, 0);
-    const placed = placeProjectCardFrame(
-      projectCardFrameFromGridCell({ col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 2, 1),
-      [occupied],
-      2,
-    );
-
-    expect(projectCardFrameToGridCell(placed, 2)).toEqual({ col: 1, row: 0, colSpan: 1, rowSpan: 1 });
-  });
-
-  it('treats frames that share an edge as neighbours, not as an overlap', () => {
-    const left = projectCardFrameFromGridCell({ col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 3, 0);
-    const right = projectCardFrameFromGridCell({ col: 1, row: 0, colSpan: 1, rowSpan: 1 }, 3, 1);
-
-    expect(placeProjectCardFrame(right, [left], 3)).toEqual(right);
-  });
-
-  it('reconciles stale entries and appends missing projects without overlap', () => {
-    const projects = [makeProject('a', 0), makeProject('b', 1), makeProject('c', 2)];
+  it('leaves overlapping cards where the user put them', () => {
+    const projects = [makeProject('a', 0), makeProject('b', 1)];
+    const overlapping = { x: 0.1, y: 20, w: 0.5, h: 200, z: 3 };
     const layout: ProjectGridLayout = {
       version: 2,
       cards: {
-        stale: projectCardFrameFromGridCell({ col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 3, 0),
-        a: projectCardFrameFromGridCell({ col: 0, row: 0, colSpan: 2, rowSpan: 1 }, 3, 1),
-        b: projectCardFrameFromGridCell({ col: 1, row: 0, colSpan: 2, rowSpan: 1 }, 3, 2),
+        a: { x: 0, y: 0, w: 0.5, h: 200, z: 1 },
+        b: overlapping,
       },
       folders: {},
     };
 
-    const next = reconcileProjectGridLayout(projects, [], layout, 3);
+    const next = reconcileProjectGridLayout(projects, [], layout, BOARD);
 
-    expect(Object.keys(next.cards).sort()).toEqual(['a', 'b', 'c']);
-    expect(projectCardFrameToGridCell(next.cards.a, 3)).toEqual({ col: 0, row: 0, colSpan: 2, rowSpan: 1 });
-    expect(next.cards.b.y).toBeGreaterThanOrEqual(ROW_STEP);
-    expect(next.cards.c).toBeDefined();
+    expect(next.cards.b).toEqual(overlapping);
+    expect(next.cards.a).toEqual({ x: 0, y: 0, w: 0.5, h: 200, z: 1 });
+  });
+
+  it('drops stale entries and places an unplaced project below the placed ones', () => {
+    const projects = [makeProject('a', 0), makeProject('b', 1)];
+    const layout: ProjectGridLayout = {
+      version: 2,
+      cards: {
+        stale: { x: 0, y: 0, w: 0.25, h: 100, z: 0 },
+        a: { x: 0, y: 0, w: 0.25, h: 300, z: 5 },
+      },
+      folders: {},
+    };
+
+    const next = reconcileProjectGridLayout(projects, [], layout, BOARD);
+
+    expect(Object.keys(next.cards).sort()).toEqual(['a', 'b']);
+    expect(next.cards.b.y).toBeGreaterThanOrEqual(300);
+    expect(next.cards.b.z).toBeGreaterThan(next.cards.a.z);
+  });
+
+  it('packs never-placed cards left to right rather than stacking them', () => {
+    const first = appendProjectCardFrame(0, 0, 0, BOARD);
+    const second = appendProjectCardFrame(1, 0, 1, BOARD);
+
+    expect(first.x).toBe(0);
+    expect(first.y).toBe(0);
+    expect(first.h).toBe(DEFAULT_CARD_HEIGHT_PX);
+    expect(second.y).toBe(0);
+    expect(second.x).toBeGreaterThan(first.x);
+    expect(second.x).toBeGreaterThanOrEqual(first.x + first.w);
+  });
+
+  it('starts a new row once a row of default cards is full', () => {
+    const perRow = Math.floor(BOARD / 240);
+    const wrapped = appendProjectCardFrame(perRow, 0, 0, BOARD);
+
+    expect(wrapped.x).toBe(0);
+    expect(wrapped.y).toBe(DEFAULT_CARD_HEIGHT_PX + PROJECT_CARD_GAP_PX);
+  });
+
+  it('measures the board by its lowest frame and stacks above every frame in it', () => {
+    expect(framesBottom([])).toBe(0);
+    expect(framesBottom([
+      { x: 0, y: 10, w: 0.2, h: 100, z: 0 },
+      { x: 0.5, y: 40, w: 0.2, h: 80, z: 0 },
+    ])).toBe(120);
+
+    expect(topStackingOrder({
+      version: 2,
+      cards: { a: { x: 0, y: 0, w: 0.2, h: 80, z: 2 } },
+      folders: { f: { x: 0, y: 0, w: 0.5, h: 200, z: 7 } },
+    })).toBe(8);
   });
 });
-

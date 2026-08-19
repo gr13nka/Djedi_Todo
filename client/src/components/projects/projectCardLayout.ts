@@ -3,15 +3,19 @@ import type { Project, ProjectCardFrame, ProjectFolder, ProjectGridLayout } from
 export const PROJECT_CARD_GAP_PX = 12;
 export const PROJECT_CARD_ROW_PX = 72;
 
-/** Distance from one card's top edge to the next one's, back when rows were a fixed step. */
+/** Nothing on the board may shrink past this; below it a card cannot show a name and an excerpt. */
+export const MIN_CARD_WIDTH_PX = 160;
+export const MIN_CARD_HEIGHT_PX = PROJECT_CARD_ROW_PX;
+
+/** Size a card gets the first time the board places it. */
+export const DEFAULT_CARD_WIDTH_PX = 240;
+export const DEFAULT_CARD_HEIGHT_PX = 2 * PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
+
+/** Distance from one card's top edge to the next one's in the retired cell grid. */
 const ROW_STEP_PX = PROJECT_CARD_ROW_PX + PROJECT_CARD_GAP_PX;
 
-/**
- * Fractions that came out of cell arithmetic land on each other's edges, so a strict
- * comparison would report neighbours as overlapping. Anything thinner than this is contact,
- * not overlap.
- */
-const TOUCH_EPSILON = 1e-6;
+/** Board width assumed while the container has not been measured yet. */
+const UNMEASURED_BOARD_WIDTH_PX = 960;
 
 export interface ProjectGridSectionModel {
   folder: ProjectFolder | null;
@@ -26,10 +30,7 @@ export interface ProjectCardFrameInput {
   z?: number;
 }
 
-/**
- * A rectangle in the retired cell grid. Frames are stored as fractions now; cells survive
- * only as the unit the board still snaps to and as the shape v1 layouts are read in.
- */
+/** A rectangle in the retired cell grid; only v1 layouts are still read in this shape. */
 export interface ProjectGridCell {
   col: number;
   row: number;
@@ -42,8 +43,11 @@ interface LegacyProjectGridLayout {
   desktop?: Record<string, ProjectGridCell | undefined>;
 }
 
-export function getProjectGridColumnCount(width: number, viewport: 'mobile' | 'desktop'): number {
-  if (viewport === 'mobile') return 2;
+/**
+ * Column count of the retired cell grid, kept only so a v1 layout converts against the same
+ * count it was written under. The live board has no columns.
+ */
+export function legacyGridColumnCount(width: number): number {
   if (width >= 1120) return 4;
   if (width >= 820) return 3;
   return 2;
@@ -61,38 +65,36 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function boardWidthOrDefault(boardWidth: number): number {
+  return boardWidth > 0 ? boardWidth : UNMEASURED_BOARD_WIDTH_PX;
+}
+
+/** The pixel minimum expressed against this board, so `w` can stay a fraction. */
+function minWidthFraction(boardWidth: number): number {
+  return Math.min(1, MIN_CARD_WIDTH_PX / boardWidthOrDefault(boardWidth));
+}
+
 export function sanitizeProjectCardFrame(
   frame: ProjectCardFrameInput | undefined,
-  columns: number,
+  boardWidth: number,
 ): ProjectCardFrame {
-  const minWidth = 1 / Math.max(1, columns);
+  const minWidth = minWidthFraction(boardWidth);
   const w = clampNumber(toFinite(frame?.w, minWidth), minWidth, 1);
   return {
     x: clampNumber(toFinite(frame?.x, 0), 0, Math.max(0, 1 - w)),
     y: Math.max(0, toFinite(frame?.y, 0)),
     w,
-    h: Math.max(PROJECT_CARD_ROW_PX, toFinite(frame?.h, PROJECT_CARD_ROW_PX)),
+    h: Math.max(MIN_CARD_HEIGHT_PX, toFinite(frame?.h, DEFAULT_CARD_HEIGHT_PX)),
     z: Math.max(0, Math.round(toFinite(frame?.z, 0))),
   };
 }
 
-/** Snap a frame onto the cell grid the board still renders through. */
-export function projectCardFrameToGridCell(frame: ProjectCardFrame, columns: number): ProjectGridCell {
-  const cols = Math.max(1, columns);
-  const colSpan = clampNumber(Math.round(frame.w * cols), 1, cols);
-  return {
-    col: clampNumber(Math.round(frame.x * cols), 0, cols - colSpan),
-    row: Math.max(0, Math.round(frame.y / ROW_STEP_PX)),
-    colSpan,
-    rowSpan: Math.max(1, Math.round((frame.h + PROJECT_CARD_GAP_PX) / ROW_STEP_PX)),
-  };
-}
-
-/** The exact inverse of {@link projectCardFrameToGridCell}, so v1 layouts migrate in place. */
+/** Reads one v1 cell as a frame. The column count is the one those cells were written under. */
 export function projectCardFrameFromGridCell(
   cell: ProjectGridCell | undefined,
   columns: number,
   z: number,
+  boardWidth: number,
 ): ProjectCardFrame {
   const cols = Math.max(1, columns);
   const colSpan = Math.max(1, Math.round(toFinite(cell?.colSpan, 1)));
@@ -103,7 +105,7 @@ export function projectCardFrameFromGridCell(
     w: colSpan / cols,
     h: rowSpan * PROJECT_CARD_ROW_PX + (rowSpan - 1) * PROJECT_CARD_GAP_PX,
     z,
-  }, columns);
+  }, boardWidth);
 }
 
 /**
@@ -120,15 +122,16 @@ export function isLegacyProjectGridLayout(value: unknown): boolean {
 
 export function normalizeProjectGridLayout(
   value: ProjectGridLayout | null | undefined,
-  columns: number,
+  boardWidth: number,
 ): ProjectGridLayout {
   if (!value || typeof value !== 'object') return emptyProjectGridLayout();
 
   if (isLegacyProjectGridLayout(value)) {
     const cells = (value as unknown as LegacyProjectGridLayout).desktop ?? {};
+    const columns = legacyGridColumnCount(boardWidthOrDefault(boardWidth));
     const next = emptyProjectGridLayout();
     Object.keys(cells).forEach((projectId, index) => {
-      next.cards[projectId] = projectCardFrameFromGridCell(cells[projectId], columns, index);
+      next.cards[projectId] = projectCardFrameFromGridCell(cells[projectId], columns, index, boardWidth);
     });
     return next;
   }
@@ -137,10 +140,10 @@ export function normalizeProjectGridLayout(
 
   const next = emptyProjectGridLayout();
   for (const [projectId, frame] of Object.entries(value.cards ?? {})) {
-    next.cards[projectId] = sanitizeProjectCardFrame(frame, columns);
+    next.cards[projectId] = sanitizeProjectCardFrame(frame, boardWidth);
   }
   for (const [folderId, frame] of Object.entries(value.folders ?? {})) {
-    next.folders[folderId] = sanitizeProjectCardFrame(frame, columns);
+    next.folders[folderId] = sanitizeProjectCardFrame(frame, boardWidth);
   }
   return next;
 }
@@ -167,78 +170,91 @@ export function groupProjectsForGrid(projects: Project[], folders: ProjectFolder
   return sections;
 }
 
-export function projectCardFramesOverlap(a: ProjectCardFrame, b: ProjectCardFrame): boolean {
-  return (
-    a.x < b.x + b.w - TOUCH_EPSILON &&
-    a.x + a.w > b.x + TOUCH_EPSILON &&
-    a.y < b.y + b.h - TOUCH_EPSILON &&
-    a.y + a.h > b.y + TOUCH_EPSILON
-  );
-}
-
-function isOpen(frame: ProjectCardFrame, occupied: ProjectCardFrame[]): boolean {
-  return !occupied.some((other) => projectCardFramesOverlap(frame, other));
-}
-
-export function placeProjectCardFrame(
-  desired: ProjectCardFrame,
-  occupied: ProjectCardFrame[],
-  columns: number,
+/**
+ * Where a card the board has never placed goes: packed left to right in rows of the default
+ * size, below everything already placed. Cards may overlap once dragged, but arriving on top
+ * of an existing one would read as a bug rather than as a choice.
+ */
+export function appendProjectCardFrame(
+  index: number,
+  below: number,
+  z: number,
+  boardWidth: number,
 ): ProjectCardFrame {
-  const start = sanitizeProjectCardFrame(desired, columns);
-  if (isOpen(start, occupied)) return start;
-
-  const colStep = 1 / Math.max(1, columns);
-  const startRow = Math.round(start.y / ROW_STEP_PX);
-
-  for (let row = startRow; row < startRow + occupied.length + 24; row++) {
-    for (let col = 0; col * colStep + start.w <= 1 + TOUCH_EPSILON; col++) {
-      const candidate = { ...start, x: col * colStep, y: row * ROW_STEP_PX };
-      if (isOpen(candidate, occupied)) return candidate;
-    }
-  }
-
-  const bottom = occupied.reduce((max, frame) => Math.max(max, frame.y + frame.h), 0);
-  return { ...start, x: 0, y: bottom + PROJECT_CARD_GAP_PX };
+  const width = boardWidthOrDefault(boardWidth);
+  const w = Math.min(1, DEFAULT_CARD_WIDTH_PX / width);
+  const perRow = Math.max(1, Math.floor(1 / w));
+  const column = index % perRow;
+  const row = Math.floor(index / perRow);
+  return sanitizeProjectCardFrame({
+    x: column * w,
+    y: below + row * (DEFAULT_CARD_HEIGHT_PX + PROJECT_CARD_GAP_PX),
+    w,
+    h: DEFAULT_CARD_HEIGHT_PX,
+    z,
+  }, boardWidth);
 }
 
+/** Bottom edge of the lowest frame in `frames`, or 0 when there are none. */
+export function framesBottom(frames: ProjectCardFrame[]): number {
+  return frames.reduce((bottom, frame) => Math.max(bottom, frame.y + frame.h), 0);
+}
+
+/**
+ * Brings the stored layout in line with the projects that actually exist: stale entries are
+ * dropped, and a project without a frame gets one. Saved frames are returned untouched —
+ * where a card sits is the user's answer, and the board no longer has an opinion about
+ * overlap.
+ */
 export function reconcileProjectGridLayout(
   projects: Project[],
   folders: ProjectFolder[],
   value: ProjectGridLayout | null | undefined,
-  columns: number,
+  boardWidth: number,
 ): ProjectGridLayout {
-  const layout = normalizeProjectGridLayout(value, columns);
+  const layout = normalizeProjectGridLayout(value, boardWidth);
   const sections = groupProjectsForGrid(projects, folders);
   const next = emptyProjectGridLayout();
   next.folders = layout.folders;
-  let stacking = 0;
 
   for (const section of sections) {
-    const occupied: ProjectCardFrame[] = [];
+    const placed: ProjectCardFrame[] = [];
+    const unplaced: Project[] = [];
+    let stacking = 0;
+
     for (const project of section.projects) {
       const saved = layout.cards[project.id];
-      const desired = sanitizeProjectCardFrame(
-        saved ?? { x: 0, y: occupied.length * ROW_STEP_PX, w: 1 / Math.max(1, columns), h: PROJECT_CARD_ROW_PX, z: stacking },
-        columns,
-      );
-      const placed = placeProjectCardFrame(desired, occupied, columns);
-      occupied.push(placed);
-      next.cards[project.id] = placed;
-      stacking = Math.max(stacking, placed.z) + 1;
+      if (saved) {
+        placed.push(saved);
+        next.cards[project.id] = saved;
+        stacking = Math.max(stacking, saved.z);
+      } else {
+        unplaced.push(project);
+      }
     }
+
+    const below = placed.length ? framesBottom(placed) + PROJECT_CARD_GAP_PX : 0;
+    unplaced.forEach((project, index) => {
+      next.cards[project.id] = appendProjectCardFrame(index, below, stacking + 1 + index, boardWidth);
+    });
   }
 
   return next;
+}
+
+/** One above every frame currently in the layout, so a grabbed card comes to the front. */
+export function topStackingOrder(layout: ProjectGridLayout): number {
+  const frames = [...Object.values(layout.cards), ...Object.values(layout.folders)];
+  return frames.reduce((top, frame) => Math.max(top, frame.z), 0) + 1;
 }
 
 export function updateProjectFrameInLayout(
   value: ProjectGridLayout | null | undefined,
   projectId: string,
   frame: ProjectCardFrame,
-  columns: number,
+  boardWidth: number,
 ): ProjectGridLayout {
-  const layout = normalizeProjectGridLayout(value, columns);
+  const layout = normalizeProjectGridLayout(value, boardWidth);
   return {
     version: 2,
     cards: {

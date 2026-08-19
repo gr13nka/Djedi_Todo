@@ -4,7 +4,10 @@ import type { Project, ProjectFolder, ProjectGridLayout } from '@shared/types';
 import { useTranslation } from '../../i18n/useTranslation';
 import { NEU } from '../../utils/shadows';
 import { useProjectCardLayout } from './useProjectCardLayout';
-import { PROJECT_CARD_GAP_PX, PROJECT_CARD_ROW_PX } from './projectCardLayout';
+import { PROJECT_CARD_ROW_PX } from './projectCardLayout';
+
+/** Room kept under the lowest card so a card can always be dragged further down. */
+const BOARD_TRAILING_SPACE_PX = PROJECT_CARD_ROW_PX;
 
 interface ProjectGridActions {
   openProject: (projectId: string) => void;
@@ -127,14 +130,7 @@ export function ProjectGrid({
       )}
 
       {grid.sections.length === 0 ? (
-        <div
-          className={isDesktop ? 'grid' : 'grid grid-cols-2 gap-3'}
-          style={isDesktop ? {
-            gridTemplateColumns: `repeat(${grid.columns}, minmax(0, 1fr))`,
-            gridAutoRows: `${PROJECT_CARD_ROW_PX}px`,
-            gap: PROJECT_CARD_GAP_PX,
-          } : undefined}
-        >
+        <div className={isDesktop ? 'max-w-xs' : 'grid grid-cols-2 gap-3'}>
           <AddProjectTile
             desktop={isDesktop}
             onClick={() => actions.requestAddProject(null)}
@@ -158,12 +154,8 @@ export function ProjectGrid({
 
               <div
                 data-project-grid-section
-                className={isDesktop ? 'grid min-w-0' : 'grid grid-cols-2 gap-3'}
-                style={isDesktop ? {
-                  gridTemplateColumns: `repeat(${grid.columns}, minmax(0, 1fr))`,
-                  gridAutoRows: `${PROJECT_CARD_ROW_PX}px`,
-                  gap: PROJECT_CARD_GAP_PX,
-                } : undefined}
+                className={isDesktop ? 'relative min-w-0' : 'grid grid-cols-2 gap-3'}
+                style={isDesktop ? { height: section.height + BOARD_TRAILING_SPACE_PX } : undefined}
               >
                 {section.cards.map((card) => {
                   const openCount = taskCounts[card.project.id] ?? 0;
@@ -233,14 +225,7 @@ export function ProjectGrid({
             </section>
           ))}
 
-          <div
-            className={isDesktop ? 'grid' : 'grid grid-cols-2 gap-3'}
-            style={isDesktop ? {
-              gridTemplateColumns: `repeat(${grid.columns}, minmax(0, 1fr))`,
-              gridAutoRows: `${PROJECT_CARD_ROW_PX}px`,
-              gap: PROJECT_CARD_GAP_PX,
-            } : undefined}
-          >
+          <div className={isDesktop ? 'max-w-xs' : 'grid grid-cols-2 gap-3'}>
             <AddProjectTile
               desktop={isDesktop}
               onClick={() => actions.requestAddProject(null)}
