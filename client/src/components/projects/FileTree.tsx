@@ -25,7 +25,7 @@ export function FileTree() {
   const { t } = useTranslation();
   const { folders, createFolder, updateFolder, deleteFolder, toggleExpanded } = useFolders();
   const { projects, createProject, deleteProject, moveProject, updateProject } = useProjects();
-  const { facts: boardFacts } = useProjectsBoard(projects);
+  const { facts: boardFacts, idleSignalsVisible } = useProjectsBoard(projects);
   const openCounts = useMemo(
     () => Object.fromEntries(Object.entries(boardFacts).map(([id, fact]) => [id, fact.openCount])),
     [boardFacts],
@@ -183,6 +183,7 @@ export function FileTree() {
             folder={folder}
             projects={projectsByFolder(folder.id)}
             openCounts={openCounts}
+            showStalled={idleSignalsVisible}
             fontPx={projectListFontPx}
             activeTabId={activeTabId}
             onToggle={() => toggleExpanded(folder.id)}
@@ -216,6 +217,7 @@ export function FileTree() {
             fontPx={projectListFontPx}
             isActive={project.id === activeTabId}
             openCount={openCounts[project.id] ?? 0}
+            showStalled={idleSignalsVisible}
             onClick={() => openTab(project.id)}
             onContextMenu={(e) => handleContextMenu(e, project)}
             onPointerDown={startProjectDrag(project)}
@@ -274,6 +276,7 @@ function FolderRow({
   folder,
   projects,
   openCounts,
+  showStalled,
   fontPx,
   activeTabId,
   onToggle,
@@ -292,6 +295,7 @@ function FolderRow({
   projects: Project[];
   /** Incomplete task count per project id, for the rows this folder renders. */
   openCounts: Record<string, number>;
+  showStalled: boolean;
   fontPx: number;
   activeTabId: string | null;
   onToggle: () => void;
@@ -396,6 +400,7 @@ function FolderRow({
                   fontPx={fontPx}
                   isActive={project.id === activeTabId}
                   openCount={openCounts[project.id] ?? 0}
+                  showStalled={showStalled}
                   onClick={() => onProjectClick(project.id)}
                   onContextMenu={(e) => onContextMenu(e, project)}
                   onPointerDown={onProjectPointerDown(project)}
@@ -414,6 +419,7 @@ function ProjectRow({
   fontPx,
   isActive,
   openCount,
+  showStalled,
   onClick,
   onContextMenu,
   onPointerDown,
@@ -423,13 +429,15 @@ function ProjectRow({
   isActive: boolean;
   /** Incomplete tasks left; 0 means no next action is formulated. */
   openCount: number;
+  /** Whether the no-next-action dot is shown; the board's idle-signals switch governs it. */
+  showStalled: boolean;
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onPointerDown?: (e: React.PointerEvent<HTMLElement>) => void;
 }) {
   const { t } = useTranslation();
   // An archived project is finished, not stalled — the marker would be an accusation.
-  const stalled = openCount === 0 && !project.isArchived;
+  const stalled = showStalled && openCount === 0 && !project.isArchived;
   return (
     <button
       onClick={onClick}

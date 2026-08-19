@@ -84,7 +84,7 @@ export function useProjectsBoard(projects: Project[]) {
     [],
   );
   const [now, setNow] = useState(() => Date.now());
-  const idleDaysVisible = useSettingsStore((s) => s.boardIdleDaysVisible);
+  const idleSignalsVisible = useSettingsStore((s) => s.boardIdleSignalsVisible);
   const updateSettings = useSettingsStore((s) => s.update);
 
   useEffect(() => {
@@ -107,9 +107,9 @@ export function useProjectsBoard(projects: Project[]) {
     return facts;
   }, [activity, now, projects]);
 
-  const toggleIdleDays = () => {
-    updateSettings({ boardIdleDaysVisible: !idleDaysVisible });
+  const toggleIdleSignals = () => {
+    updateSettings({ boardIdleSignalsVisible: !idleSignalsVisible });
   };
 
-  return { facts, idleDaysVisible, toggleIdleDays };
+  return { facts, idleSignalsVisible, toggleIdleSignals };
 }

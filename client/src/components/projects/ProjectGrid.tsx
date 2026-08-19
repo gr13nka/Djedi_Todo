@@ -31,8 +31,8 @@ interface ProjectGridProps {
   folders: ProjectFolder[];
   /** What each card says beyond its name, keyed by project id. */
   facts?: Record<string, ProjectBoardFacts>;
-  idleDaysVisible?: boolean;
-  onToggleIdleDays?: () => void;
+  idleSignalsVisible?: boolean;
+  onToggleIdleSignals?: () => void;
   layout: ProjectGridLayout;
   onLayoutChange: (next: ProjectGridLayout) => void | Promise<void>;
   viewport: 'mobile' | 'desktop';
@@ -76,8 +76,8 @@ export function ProjectGrid({
   projects,
   folders,
   facts = {},
-  idleDaysVisible = false,
-  onToggleIdleDays,
+  idleSignalsVisible = false,
+  onToggleIdleSignals,
   layout,
   onLayoutChange,
   viewport,
@@ -116,19 +116,19 @@ export function ProjectGrid({
             {t('projects.title')}
           </span>
           <div className="flex items-center gap-1.5">
-            {onToggleIdleDays && (
+            {onToggleIdleSignals && (
               <button
                 type="button"
-                onClick={onToggleIdleDays}
-                aria-pressed={idleDaysVisible}
+                onClick={onToggleIdleSignals}
+                aria-pressed={idleSignalsVisible}
                 className={`h-7 px-2 flex items-center gap-1.5 rounded-lg text-[11px] transition-colors ${
-                  idleDaysVisible ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
+                  idleSignalsVisible ? 'text-accent' : 'text-text-muted hover:text-text-secondary'
                 }`}
-                style={{ boxShadow: idleDaysVisible ? NEU.pressedSm : NEU.raisedSm }}
-                title={t('projects.idleDays')}
+                style={{ boxShadow: idleSignalsVisible ? NEU.pressedSm : NEU.raisedSm }}
+                title={t('projects.idleSignals')}
               >
                 <HourglassIcon />
-                <span className="hidden sm:inline">{t('projects.idleDays')}</span>
+                <span className="hidden sm:inline">{t('projects.idleSignals')}</span>
               </button>
             )}
             <button
@@ -224,7 +224,7 @@ export function ProjectGrid({
                 editable={editable}
                 fontPx={fontPx}
                 facts={facts[card.project.id]}
-                idleDaysVisible={idleDaysVisible}
+                idleSignalsVisible={idleSignalsVisible}
                 isActive={card.project.id === activeProjectId}
                 onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
                 onLongPressStart={undefined}
@@ -267,7 +267,7 @@ export function ProjectGrid({
                         editable={false}
                         fontPx={fontPx}
                         facts={facts[card.project.id]}
-                        idleDaysVisible={idleDaysVisible}
+                        idleSignalsVisible={idleSignalsVisible}
                         isActive={card.project.id === activeProjectId}
                         onRequestDelete={() => actions.requestDeleteProject(card.project.id)}
                         onLongPressStart={() => {
@@ -326,7 +326,7 @@ function ProjectCardTile({
   editable,
   fontPx,
   facts,
-  idleDaysVisible,
+  idleSignalsVisible,
   isActive,
   onRequestDelete,
   onLongPressStart,
@@ -337,7 +337,7 @@ function ProjectCardTile({
   editable: boolean;
   fontPx: number;
   facts?: ProjectBoardFacts;
-  idleDaysVisible: boolean;
+  idleSignalsVisible: boolean;
   isActive: boolean;
   onRequestDelete: () => void;
   onLongPressStart?: () => void;
@@ -393,7 +393,7 @@ function ProjectCardTile({
       )}
 
       {/* Deliberately uncoloured: red on this screen means "no next action". */}
-      {idleDaysVisible && !!facts && (
+      {idleSignalsVisible && !!facts && (
         <span className="shrink-0 text-[11px] text-text-muted tabular-nums">
           {facts.idleDays > 0
             ? `${facts.idleDays} ${t('projects.idleDaysShort')}`

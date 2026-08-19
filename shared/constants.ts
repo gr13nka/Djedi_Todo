@@ -98,7 +98,7 @@ export const DEFAULT_DEVICE_SETTINGS = {
     cards: {},
     folders: {},
   },
-  boardIdleDaysVisible: false,
+  boardIdleSignalsVisible: false,
   projectSidebarWidth: 220,
   projectTaskPaneWidth: 288,
   projectTaskPaneHeight: 240,

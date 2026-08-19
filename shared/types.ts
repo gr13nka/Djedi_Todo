@@ -114,7 +114,8 @@ export interface DeviceSettings {
   bottomNavScrollable: boolean;
   bottomNavPages: string[][];
   projectGridLayout: ProjectGridLayout;
-  boardIdleDaysVisible: boolean;
+  /** Shows both board idle-day counts and the tree's no-next-action dots. */
+  boardIdleSignalsVisible: boolean;
   /** Pane sizes on /projects, in pixels. Device-local, like the board layout they sit beside. */
   projectSidebarWidth: number;
   projectTaskPaneWidth: number;
