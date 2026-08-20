@@ -3,7 +3,9 @@
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-user_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+# getent is glibc-only; hosts without it (macOS, BSD) fall back to $HOME.
+user_home=$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)
+user_home=${user_home:-$HOME}
 user_local="$user_home/.local"
 binary_source="$script_dir/client/src-tauri/target/release/jedinotebook"
 desktop_source="$script_dir/client/src-tauri/target/release/bundle/deb/JediNotebook_0.3.0_amd64/data/usr/share/applications/JediNotebook.desktop"

@@ -3,7 +3,9 @@
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-user_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+# getent is glibc-only; hosts without it (macOS, BSD) fall back to $HOME.
+user_home=$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)
+user_home=${user_home:-$HOME}
 android_sdk_root=${ANDROID_SDK_ROOT:-"$user_home/.local/opt/android-sdk"}
 ndk_version=${ANDROID_NDK_VERSION:-27.2.12479018}
 ndk_root=${NDK_HOME:-"$android_sdk_root/ndk/$ndk_version"}
