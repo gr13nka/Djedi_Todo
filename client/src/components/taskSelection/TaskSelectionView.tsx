@@ -10,6 +10,7 @@ import type { TranslationKey } from '../../i18n/translations';
 import { useProjectUIStore } from '../../stores/projectUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { normalizeTaskText } from '../../utils/taskText';
+import { NEU } from '../../utils/shadows';
 import { InfoTooltip } from '../ui/InfoTooltip';
 import { BottomSheet } from '../ui/BottomSheet';
 import { TaskTextArea } from '../ui/TaskTextArea';
@@ -381,7 +382,10 @@ export function TaskSelectionView() {
       {availableProjects.length > 0 && (
         <div className="mb-4">
           {addingTask ? (
-            <div className="flex min-h-[58px] flex-col gap-2 rounded-lg border border-dashed border-border bg-bg-card/70 px-3 py-2 sm:flex-row sm:items-start">
+            <div
+              className="flex w-full flex-col gap-2 rounded-2xl bg-bg-card p-2.5 sm:flex-row sm:items-start"
+              style={{ boxShadow: NEU.pressed }}
+            >
               <TaskTextArea
                 textareaRef={addInputRef}
                 value={newTaskTitle}
@@ -390,13 +394,14 @@ export function TaskSelectionView() {
                 onKeyDown={handleAddKeyDown}
                 placeholder={t('taskSelection.addTask')}
                 focusOnMount
-                className="min-h-9 flex-1 py-2 text-sm leading-5 text-text-primary placeholder:text-text-muted"
+                className="min-h-10 flex-1 px-2.5 py-2 text-sm leading-5 text-text-primary placeholder:text-text-muted"
               />
               <div className="flex shrink-0 items-center gap-2 self-end sm:self-start">
                 <select
                   value={newTaskProjectId}
                   onChange={(e) => setNewTaskProjectId(e.target.value)}
-                  className="max-w-[180px] rounded-lg border border-border bg-transparent px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent sm:max-w-[140px]"
+                  className="max-w-[180px] rounded-xl bg-transparent px-2 py-1 text-xs text-text-secondary focus:outline-none sm:max-w-[140px]"
+                  style={{ boxShadow: NEU.pressedSm }}
                 >
                   {!newTaskProjectId && (
                     <option value="">{t('taskSelection.selectProject')}</option>
@@ -408,7 +413,8 @@ export function TaskSelectionView() {
                 <button
                   onClick={handleAddTask}
                   disabled={!normalizeTaskText(newTaskTitle) || !newTaskProjectId}
-                  className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-accent text-white disabled:opacity-30 transition-opacity"
+                  className="flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl text-accent transition-opacity disabled:opacity-40"
+                  style={{ boxShadow: NEU.raisedSm }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -417,7 +423,7 @@ export function TaskSelectionView() {
                 </button>
                 <button
                   onClick={() => { setAddingTask(false); setNewTaskTitle(''); }}
-                  className="flex-shrink-0 text-text-muted hover:text-text-secondary text-sm px-1"
+                  className="flex-shrink-0 rounded-xl px-1 text-sm text-text-muted transition-colors hover:text-text-secondary focus:outline-none"
                 >
                   &times;
                 </button>
@@ -426,7 +432,8 @@ export function TaskSelectionView() {
           ) : (
             <button
               onClick={openAddBar}
-              className="flex min-h-[58px] w-full items-center gap-2 rounded-lg border border-dashed border-border px-4 text-left text-sm text-text-muted transition-colors hover:bg-bg-elevated/30 hover:text-text-secondary"
+              className="flex min-h-[60px] w-full items-center gap-2 rounded-2xl bg-bg-card px-4 py-2.5 text-left text-sm text-text-muted transition-colors hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              style={{ boxShadow: NEU.pressed }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
