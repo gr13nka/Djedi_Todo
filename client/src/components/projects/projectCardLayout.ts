@@ -409,7 +409,13 @@ export function mobileExcerptCharsPerLine(columnWidth: number): number {
  * cards to decide which column is shorter, so being approximate costs nothing.
  */
 export function estimateMobileCardHeight(excerpt: string, charsPerLine: number): number {
-  const lines = excerpt ? Math.ceil(excerpt.length / Math.max(1, charsPerLine)) : 0;
+  if (!excerpt) return MOBILE_CARD_HEADER_PX;
+  // The excerpt keeps its own line breaks, so a card is as tall as its lines wrap to — not as
+  // tall as its character count would be if it all ran together.
+  const perLine = Math.max(1, charsPerLine);
+  const lines = excerpt
+    .split('\n')
+    .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / perLine)), 0);
   return MOBILE_CARD_HEADER_PX + Math.min(lines, MOBILE_CARD_MAX_LINES) * MOBILE_CARD_LINE_PX;
 }
 

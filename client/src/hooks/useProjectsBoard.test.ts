@@ -64,10 +64,16 @@ describe('project board facts', () => {
     expect(daysSince(0, now)).toBe(0);
   });
 
-  it('strips markdown and collapses the note into one run of text', () => {
+  it('strips markdown but keeps the line structure the note was written in', () => {
     const excerpt = projectExcerpt('# Заголовок\n\nНадо **выяснить** сроки\n- у Ивана');
 
-    expect(excerpt).toBe('Заголовок Надо выяснить сроки у Ивана');
+    expect(excerpt).toBe('Заголовок\n\nНадо выяснить сроки\nу Ивана');
+  });
+
+  it('collapses spaces inside a line and long gaps between them, but not the breaks', () => {
+    expect(projectExcerpt('раз   два\t\tтри')).toBe('раз два три');
+    expect(projectExcerpt('раз   \n   два')).toBe('раз\nдва');
+    expect(projectExcerpt('раз\n\n\n\n\nдва')).toBe('раз\n\nдва');
   });
 
   it('treats an empty or missing note as no excerpt', () => {

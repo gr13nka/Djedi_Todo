@@ -448,7 +448,10 @@ function ProjectCardTile({
       {/* No clamp: the card's own height is what decides how much of the note is readable,
           which is the whole reason a card can be resized. */}
       {!!facts?.excerpt && (
-        <p className="min-h-0 flex-1 overflow-hidden leading-snug text-text-muted" style={{ fontSize: `${notePx}px` }}>
+        <p
+          className="min-h-0 flex-1 overflow-hidden whitespace-pre-line leading-snug text-text-muted"
+          style={{ fontSize: `${notePx}px` }}
+        >
           {facts.excerpt}
         </p>
       )}

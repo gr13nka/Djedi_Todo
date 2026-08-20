@@ -290,6 +290,15 @@ describe('project card layout', () => {
     expect(huge).toBeLessThan(empty + 9 * 16);
   });
 
+  it('counts a card\'s own line breaks when estimating its height', () => {
+    const perLine = mobileExcerptCharsPerLine(180);
+    const oneLine = estimateMobileCardHeight('раз два', perLine);
+    const threeLines = estimateMobileCardHeight('раз\nдва\nтри', perLine);
+
+    // Same length either way; the breaks are what make it taller.
+    expect(threeLines).toBeGreaterThan(oneLine);
+  });
+
   it('never divides by a zero-width column', () => {
     expect(mobileExcerptCharsPerLine(0)).toBeGreaterThan(0);
     expect(layoutMasonryColumns([{ height: 10 }], 0)).toHaveLength(1);

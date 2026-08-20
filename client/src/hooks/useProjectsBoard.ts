@@ -59,8 +59,20 @@ export function foldProjectTaskActivity(tasks: ProjectTask[]): Record<string, Pr
   return activity;
 }
 
+/**
+ * The note as a card shows it: markdown stripped, but the line structure kept.
+ *
+ * Line breaks are how a note is organised — a list is a list, a paragraph break is a change of
+ * subject — so collapsing them would hand the card a blob of prose that reads as nothing. Runs
+ * of spaces and tabs inside a line still collapse, and a gap of three or more blank lines
+ * becomes one, since neither carries meaning at card size.
+ */
 export function projectExcerpt(description: string | null | undefined): string {
-  const text = stripMarkdown(description ?? '').replace(/\s+/g, ' ').trim();
+  const text = stripMarkdown(description ?? '')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/[^\S\n]*\n[^\S\n]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return text.length > EXCERPT_CHAR_LIMIT ? `${text.slice(0, EXCERPT_CHAR_LIMIT)}…` : text;
 }
 
