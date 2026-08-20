@@ -10,12 +10,13 @@ import { CompletionBurst, useCompletionBurst } from '../ui/CompletionBurst';
 import { TaskTextArea } from '../ui/TaskTextArea';
 import type { ReorderRowProps } from '../../hooks/useReorderList';
 
-/** Canonical box order; each row offers the two entries that aren't its current box. */
-const MOVE_TARGETS: TimeBox[] = ['today', 'week', 'later'];
+/** Canonical box order; each row offers the three entries that aren't its current box. */
+const MOVE_TARGETS: TimeBox[] = ['today', 'week', 'later', 'someday'];
 const MOVE_LABEL_KEYS: Record<TimeBox, TranslationKey> = {
   today: 'taskSelection.toToday',
   week: 'taskSelection.toWeek',
   later: 'taskSelection.toLater',
+  someday: 'taskSelection.toSomeday',
 };
 
 interface SelectableTaskRowProps {

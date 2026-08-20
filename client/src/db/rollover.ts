@@ -58,7 +58,10 @@ export interface RolloverResult {
  *     or `'later'` with a due `scheduledDate` only ever hits rule 3). Either
  *     way, a task eligible for both nets into `toToday`, never `toWeek`.
  *  5. Tasks matching neither rule are left untouched (not present in any
- *     result array).
+ *     result array). This is what keeps `'someday'` a genuine backlog: rule 2
+ *     only ever empties `'today'`, so nothing decays out of `'week'`,
+ *     `'later'` or `'someday'` on its own — a task leaves those boxes only
+ *     when the user moves it or its `scheduledDate` comes due.
  *
  * The caller stamps `lastRolloverDate = today` unconditionally after
  * applying — even when every result array is empty (e.g. `'today'` was

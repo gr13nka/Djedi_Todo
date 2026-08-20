@@ -171,7 +171,7 @@ db.version(10).stores({
   const tasks = await tx.table('projectTasks').toArray();
   tasks.sort((a, b) => (a.projectId === b.projectId ? a.sortOrder - b.sortOrder : (a.projectId < b.projectId ? -1 : 1)));
 
-  const boxOrderCounters: Record<TimeBox, number> = { today: 0, week: 0, later: 0 };
+  const boxOrderCounters: Record<TimeBox, number> = { today: 0, week: 0, later: 0, someday: 0 };
   const reclassified = tasks.map(task => {
     const timeBox = classifyTimeBoxForMigration(task, inTodayListIds.has(task.id), today, dayStartHour);
     return { ...task, timeBox, scheduledDate: null, timeBoxOrder: boxOrderCounters[timeBox]++ };

@@ -231,8 +231,13 @@ export interface Project {
   deviceId: string;
 }
 
-/** Which of the three task boxes (today/week/later) a task currently lives in. */
-export type TimeBox = 'today' | 'week' | 'later';
+/**
+ * Which task box a task currently lives in, in descending order of commitment:
+ * 'today' and 'week' are active work, 'later' is committed but not this week,
+ * and 'someday' is the uncommitted backlog every newly-created task starts in.
+ * Only 'today' is emptied automatically (see `computeRollover`).
+ */
+export type TimeBox = 'today' | 'week' | 'later' | 'someday';
 
 export interface ProjectTask {
   id: string;
@@ -245,7 +250,7 @@ export interface ProjectTask {
   archivedAt: string | null;
   recurrenceRule: RecurrenceRule | null;
   lastRecurredDate: string | null;
-  /** Which box (today/week/later) the task currently lives in. */
+  /** Which box (today/week/later/someday) the task currently lives in. */
   timeBox: TimeBox;
   /** Optional pin to a logical date (YYYY-MM-DD); not the default workflow — most tasks flow through the boxes unpinned. */
   scheduledDate: string | null;

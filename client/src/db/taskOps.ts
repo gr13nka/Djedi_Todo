@@ -61,16 +61,24 @@ export async function nextBoxOrder(timeBox: TimeBox): Promise<number> {
 
 /**
  * Appends a new task to `projectId`'s active task list (sortOrder = current
- * active count) and to the end of the `'later'` box (every new task starts
- * unboxed in `'later'`; `timeBoxOrder` = `nextBoxOrder('later')`).
+ * active count) and to the end of `timeBox` (`timeBoxOrder` =
+ * `nextBoxOrder(timeBox)`).
+ *
+ * `timeBox` defaults to `'someday'`, the uncommitted backlog: a task written
+ * into a project — or sorted there out of the inbox — is captured, not yet
+ * scheduled, and promoting it is a separate deliberate act. Only callers that
+ * know better pass a box, and today only one does: `/tasks`' quick-add hands
+ * over the box tab the user is looking at, so a task added under the 'week'
+ * tab does not immediately vanish from the view that created it.
  */
 export async function createProjectTask(
   projectId: string,
   title: string,
   recurrenceRule?: RecurrenceRule | null,
+  timeBox: TimeBox = 'someday',
 ): Promise<ProjectTask> {
   const all = notDeleted(await db.projectTasks.where('projectId').equals(projectId).toArray());
-  const timeBoxOrder = await nextBoxOrder('later');
+  const timeBoxOrder = await nextBoxOrder(timeBox);
   const cleanTitle = normalizeTaskText(title);
   const task = newRecord({
     projectId,
@@ -81,7 +89,7 @@ export async function createProjectTask(
     archivedAt: null,
     recurrenceRule: recurrenceRule ?? null,
     lastRecurredDate: null,
-    timeBox: 'later' as TimeBox,
+    timeBox,
     scheduledDate: null,
     timeBoxOrder,
   });

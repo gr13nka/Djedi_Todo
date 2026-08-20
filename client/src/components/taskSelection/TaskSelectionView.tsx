@@ -40,12 +40,13 @@ type ViewMode = 'grouped' | 'flat';
 /** Which time-box the list is scoped to — 'all' turns the filter off entirely. */
 type BoxTab = TimeBox | 'all';
 
-const BOX_TABS: BoxTab[] = ['today', 'week', 'later', 'all'];
+const BOX_TABS: BoxTab[] = ['today', 'week', 'later', 'someday', 'all'];
 
 const BOX_TAB_LABEL_KEYS: Record<BoxTab, TranslationKey> = {
   today: 'taskSelection.boxToday',
   week: 'taskSelection.boxWeek',
   later: 'taskSelection.boxLater',
+  someday: 'taskSelection.boxSomeday',
   all: 'taskSelection.boxAll',
 };
 
@@ -234,11 +235,18 @@ export function TaskSelectionView() {
   // site (project-row drag below, and inside TaskGroupCard for task drag).
   const groupDragEnabled = boxTab === 'all';
 
-  // Quick add task
+  // Quick add task. The new task lands in the box the user is currently
+  // looking at, so it doesn't disappear the moment it's created; the 'all'
+  // tab implies no box, so it falls back to `createProjectTask`'s default.
   const handleAddTask = async () => {
     const title = normalizeTaskText(newTaskTitle);
     if (!title || !newTaskProjectId) return;
-    await createProjectTask(newTaskProjectId, title);
+    await createProjectTask(
+      newTaskProjectId,
+      title,
+      null,
+      boxTab === 'all' ? 'someday' : boxTab,
+    );
     setNewTaskTitle('');
     addInputRef.current?.focus();
   };
@@ -318,7 +326,7 @@ export function TaskSelectionView() {
       </div>
 
       {/* Box tab row: which time-box to show, layered above the view/sort controls */}
-      <div className="flex items-center gap-0.5 mb-2">
+      <div className="flex flex-wrap items-center gap-0.5 mb-2">
         {BOX_TABS.map((tab) => (
           <button
             key={tab}

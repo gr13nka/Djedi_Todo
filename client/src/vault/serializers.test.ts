@@ -289,7 +289,7 @@ describe('Project + tasks serialization', () => {
     expect(back.title).toBe(NON_ASCII);
   });
 
-  it.each(['today', 'week', 'later'] as const)('round-trips a task with timeBox %s', (timeBox) => {
+  it.each(['today', 'week', 'later', 'someday'] as const)('round-trips a task with timeBox %s', (timeBox) => {
     const p = makeProject();
     const task = makeTask({ timeBox, timeBoxOrder: 4 });
     const { content: tasksContent } = serializeProjectTasksFile(p, [task]);
