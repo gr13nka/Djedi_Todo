@@ -8,6 +8,8 @@ Client-only productivity app: activity time tracking, projects/tasks with folder
 
 **Tech Stack**: React 19, TypeScript 5.7, Vite 6, Tailwind CSS 4, Zustand 5, Dexie 4 (IndexedDB), Motion (animations), Recharts, React Router 7 | Tauri v2 (desktop + Android) | Vitest (363 tests) | Shared types in `/shared/`
 
+**Docs**: `README.md` is the landing page and `docs/GUIDE.md` the user-facing reference (requirements, the client commands, the three self-installing build scripts, vault sync, themes). Subsystem notes stay in `docs/`, indexed by `docs/README.md`; agent-facing invariants stay here. Note `.github/workflows/release.yml` sets `releaseDraft: true`, so every tagged release lands as a **draft** — the public Releases tab is empty and `releases/latest` 404s until one is published by hand.
+
 > **History**: `.planning/research/*.md` describe the codebase **before** the 2026-07 trim refactor — they still document habits, mind maps, Pomodoro, task timer, notes, PDF documents, fatigue check, review page, REST sync, gamification/XP, and 11 themes, all of which are now deleted. Treat them as historical background only, never as current fact. The refactor plan (what was cut and why) is at `docs/superpowers/plans/2026-07-21-refactor-trim-and-restructure.md`.
 
 ## Commands
